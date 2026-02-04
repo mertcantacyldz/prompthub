@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx create-react-router@latest . --yes)"
+      "Bash(npx create-react-router@latest . --yes)",
+      "Bash(npm install:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

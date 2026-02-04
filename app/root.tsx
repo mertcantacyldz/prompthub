@@ -8,6 +8,9 @@ import {
 } from "react-router";
 
 import type { Route } from "./+types/root";
+import { ThemeProvider } from "~/context";
+import { Header, Footer } from "~/components/layout";
+import { TooltipProvider, Toaster } from "~/components/ui";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
@@ -25,14 +28,27 @@ export const links: Route.LinksFunction = () => [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
+        {/* Prevent flash of unstyled content */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                const theme = localStorage.getItem('theme');
+                const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                const resolvedTheme = theme === 'system' || !theme ? systemTheme : theme;
+                document.documentElement.classList.add(resolvedTheme);
+              })();
+            `,
+          }}
+        />
       </head>
-      <body>
+      <body className="min-h-screen bg-[var(--background)] font-sans antialiased">
         {children}
         <ScrollRestoration />
         <Scripts />
@@ -42,7 +58,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  return <Outlet />;
+  // TODO: Replace with actual user from auth
+  const user = null;
+
+  return (
+    <ThemeProvider>
+      <TooltipProvider>
+        <div className="relative flex min-h-screen flex-col">
+          <Header user={user} />
+          <main className="flex-1">
+            <Outlet />
+          </main>
+          <Footer />
+        </div>
+        <Toaster />
+      </TooltipProvider>
+    </ThemeProvider>
+  );
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
@@ -62,14 +94,18 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   }
 
   return (
-    <main className="pt-16 p-4 container mx-auto">
-      <h1>{message}</h1>
-      <p>{details}</p>
-      {stack && (
-        <pre className="w-full p-4 overflow-x-auto">
-          <code>{stack}</code>
-        </pre>
-      )}
-    </main>
+    <ThemeProvider>
+      <main className="flex min-h-screen flex-col items-center justify-center p-4">
+        <div className="text-center">
+          <h1 className="text-6xl font-bold text-accent-500">{message}</h1>
+          <p className="mt-4 text-lg text-[var(--muted-foreground)]">{details}</p>
+          {stack && (
+            <pre className="mt-8 max-w-2xl overflow-x-auto rounded-lg bg-[var(--muted)] p-4 text-left text-sm">
+              <code>{stack}</code>
+            </pre>
+          )}
+        </div>
+      </main>
+    </ThemeProvider>
   );
 }
