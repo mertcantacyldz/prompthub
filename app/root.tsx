@@ -80,13 +80,14 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   let message = "Oops!";
   let details = "An unexpected error occurred.";
   let stack: string | undefined;
+  let is404 = false;
 
   if (isRouteErrorResponse(error)) {
-    message = error.status === 404 ? "404" : "Error";
-    details =
-      error.status === 404
-        ? "The requested page could not be found."
-        : error.statusText || details;
+    is404 = error.status === 404;
+    message = is404 ? "404" : "Error";
+    details = is404
+      ? "The page you're looking for doesn't exist or has been moved."
+      : error.statusText || details;
   } else if (import.meta.env.DEV && error && error instanceof Error) {
     details = error.message;
     stack = error.stack;
@@ -96,11 +97,30 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
     <ThemeProvider>
       <AuthProvider>
         <main className="flex min-h-screen flex-col items-center justify-center p-4">
-          <div className="text-center">
-            <h1 className="text-6xl font-bold text-accent-500">{message}</h1>
-            <p className="mt-4 text-lg text-[var(--muted-foreground)]">{details}</p>
+          <div className="text-center max-w-lg mx-auto">
+            <h1 className="text-8xl font-bold text-accent-500/20 mb-4">{message}</h1>
+            <h2 className="text-2xl font-bold mb-2">
+              {is404 ? "Page Not Found" : "Something went wrong"}
+            </h2>
+            <p className="text-[var(--muted-foreground)] mb-8">{details}</p>
+
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <a
+                href="/"
+                className="inline-flex items-center justify-center rounded-md bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-600 transition-colors"
+              >
+                Go Home
+              </a>
+              <button
+                onClick={() => window.history.back()}
+                className="inline-flex items-center justify-center rounded-md border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+              >
+                Go Back
+              </button>
+            </div>
+
             {stack && (
-              <pre className="mt-8 max-w-2xl overflow-x-auto rounded-lg bg-[var(--muted)] p-4 text-left text-sm">
+              <pre className="mt-8 max-w-2xl overflow-x-auto rounded-lg bg-[var(--muted)] p-4 text-left text-xs">
                 <code>{stack}</code>
               </pre>
             )}

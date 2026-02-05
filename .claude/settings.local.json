@@ -4,7 +4,9 @@
       "Bash(npx create-react-router@latest . --yes)",
       "Bash(npm install:*)",
       "Bash(npm run typecheck:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npx playwright install chromium)",
+      "Bash(npm run test:*)"
     ]
   }
 }
