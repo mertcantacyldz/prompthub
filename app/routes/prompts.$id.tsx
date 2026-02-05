@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import type { Route } from "./+types/prompts.$id";
 import { Container } from "~/components/layout";
 import { Button } from "~/components/ui/button";
@@ -6,9 +6,16 @@ import { Badge } from "~/components/ui/badge";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Separator } from "~/components/ui/separator";
+import { Skeleton } from "~/components/ui/skeleton";
 import { StarRating } from "~/components/custom";
-import { Copy, Bookmark, Check, ArrowLeft, Edit } from "lucide-react";
-import { useState } from "react";
+import { Copy, Bookmark, Check, ArrowLeft, Edit, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { getPromptById, incrementViewCount, incrementCopyCount } from "~/lib/api";
+import { toggleSavePrompt, isPromptSaved } from "~/lib/api";
+import { ratePrompt, getUserRating } from "~/lib/api";
+import { useAuth } from "~/context";
+import { useToast } from "~/hooks/use-toast";
+import type { PromptWithDetails } from "~/types";
 
 export function meta({ params }: Route.MetaArgs) {
   return [
@@ -17,59 +24,189 @@ export function meta({ params }: Route.MetaArgs) {
   ];
 }
 
-// Mock data - will be replaced with actual data from Supabase
-const MOCK_PROMPT = {
-  id: "1",
-  title: "Professional Email Writer",
-  description:
-    "Generate professional emails for any business context with proper tone, formatting, and structure. Perfect for business communication, follow-ups, and formal correspondence.",
-  prompt_text: `You are an expert professional email writer. I need you to write a professional email based on the following details:
-
-Context: [Describe the situation]
-Recipient: [Who is the email for]
-Purpose: [What you want to achieve]
-Tone: [Formal/Semi-formal/Friendly professional]
-
-Please write a well-structured email that:
-1. Has an appropriate subject line
-2. Opens with a professional greeting
-3. Clearly states the purpose in the first paragraph
-4. Provides necessary details in the body
-5. Ends with a clear call to action
-6. Closes professionally
-
-Additional requirements:
-- Keep it concise but complete
-- Use appropriate business language
-- Ensure proper formatting`,
-  categories: ["Writing/Content", "Business"],
-  ai_platforms: ["ChatGPT", "Claude"],
-  input_modality: "text",
-  is_public: true,
-  created_at: "2024-01-15",
-  average_rating: 4.5,
-  rating_count: 128,
-  user: {
-    id: "user1",
-    username: "promptmaster",
-    avatar_url: null,
-  },
-};
-
 export default function PromptDetail({ params }: Route.ComponentProps) {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const [prompt, setPrompt] = useState<PromptWithDetails | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
   const [userRating, setUserRating] = useState(0);
+  const [isRating, setIsRating] = useState(false);
+
+  // Fetch prompt data
+  useEffect(() => {
+    const fetchPrompt = async () => {
+      setIsLoading(true);
+      try {
+        const data = await getPromptById(params.id);
+        if (!data) {
+          toast({
+            title: "Not found",
+            description: "This prompt doesn't exist.",
+            variant: "destructive",
+          });
+          navigate("/");
+          return;
+        }
+        setPrompt(data);
+
+        // Increment view count
+        incrementViewCount(params.id).catch(console.error);
+      } catch (error) {
+        console.error("Error fetching prompt:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load prompt.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPrompt();
+  }, [params.id, navigate, toast]);
+
+  // Check saved status and user rating
+  useEffect(() => {
+    const checkUserData = async () => {
+      if (!user || !prompt) return;
+
+      try {
+        const [isSaved, rating] = await Promise.all([
+          isPromptSaved(user.id, prompt.id),
+          getUserRating(user.id, prompt.id),
+        ]);
+        setSaved(isSaved);
+        if (rating) setUserRating(rating.score);
+      } catch (error) {
+        console.error("Error checking user data:", error);
+      }
+    };
+
+    checkUserData();
+  }, [user, prompt]);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(MOCK_PROMPT.prompt_text);
+    if (!prompt) return;
+    await navigator.clipboard.writeText(prompt.prompt_text);
     setCopied(true);
+    incrementCopyCount(prompt.id).catch(console.error);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleSave = () => {
-    setSaved(!saved);
+  const handleSave = async () => {
+    if (!user) {
+      toast({
+        title: "Login required",
+        description: "Please log in to save prompts.",
+        variant: "destructive",
+      });
+      navigate("/auth/login");
+      return;
+    }
+
+    if (!prompt) return;
+
+    try {
+      const isSaved = await toggleSavePrompt(user.id, prompt.id);
+      setSaved(isSaved);
+      toast({
+        title: isSaved ? "Prompt saved" : "Prompt removed",
+        description: isSaved
+          ? "Added to your saved prompts."
+          : "Removed from your saved prompts.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save prompt.",
+        variant: "destructive",
+      });
+    }
   };
+
+  const handleRating = async (rating: number) => {
+    if (!user) {
+      toast({
+        title: "Login required",
+        description: "Please log in to rate prompts.",
+        variant: "destructive",
+      });
+      navigate("/auth/login");
+      return;
+    }
+
+    if (!prompt) return;
+
+    setIsRating(true);
+    try {
+      await ratePrompt(user.id, prompt.id, rating);
+      setUserRating(rating);
+      toast({
+        title: "Rating submitted",
+        description: `You rated this prompt ${rating} stars.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit rating.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRating(false);
+    }
+  };
+
+  const isOwner = user && prompt && user.id === prompt.user_id;
+
+  if (isLoading) {
+    return (
+      <div className="py-8">
+        <Container className="max-w-4xl">
+          <Skeleton className="h-6 w-32 mb-6" />
+          <Card>
+            <CardHeader className="space-y-4">
+              <Skeleton className="h-8 w-2/3" />
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <div>
+                  <Skeleton className="h-4 w-24 mb-1" />
+                  <Skeleton className="h-3 w-32" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Skeleton className="h-6 w-20" />
+                <Skeleton className="h-6 w-16" />
+              </div>
+            </CardHeader>
+            <Separator />
+            <CardContent className="pt-6 space-y-6">
+              <div>
+                <Skeleton className="h-6 w-32 mb-2" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4 mt-1" />
+              </div>
+              <div>
+                <Skeleton className="h-6 w-24 mb-2" />
+                <Skeleton className="h-40 w-full" />
+              </div>
+            </CardContent>
+          </Card>
+        </Container>
+      </div>
+    );
+  }
+
+  if (!prompt) {
+    return null;
+  }
+
+  const averageRating = prompt.prompt_ratings?.average_rating || 0;
+  const ratingCount = prompt.prompt_ratings?.rating_count || 0;
 
   return (
     <div className="py-8">
@@ -87,7 +224,7 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
           <CardHeader className="space-y-4">
             {/* Title and Actions */}
             <div className="flex items-start justify-between gap-4">
-              <h1 className="text-2xl font-bold">{MOCK_PROMPT.title}</h1>
+              <h1 className="text-2xl font-bold">{prompt.title}</h1>
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
@@ -99,43 +236,45 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
                     className={`h-4 w-4 ${saved ? "fill-current" : ""}`}
                   />
                 </Button>
-                <Button variant="outline" size="icon" asChild>
-                  <Link to={`/prompts/${params.id}/edit`}>
-                    <Edit className="h-4 w-4" />
-                  </Link>
-                </Button>
+                {isOwner && (
+                  <Button variant="outline" size="icon" asChild>
+                    <Link to={`/prompts/${params.id}/edit`}>
+                      <Edit className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                )}
               </div>
             </div>
 
             {/* Author Info */}
             <div className="flex items-center gap-3">
               <Avatar className="h-10 w-10">
-                <AvatarImage src={MOCK_PROMPT.user.avatar_url || undefined} />
+                <AvatarImage src={prompt.profiles?.avatar_url || undefined} />
                 <AvatarFallback>
-                  {MOCK_PROMPT.user.username.charAt(0).toUpperCase()}
+                  {prompt.profiles?.username?.charAt(0).toUpperCase() || "U"}
                 </AvatarFallback>
               </Avatar>
               <div>
                 <Link
-                  to={`/profile/${MOCK_PROMPT.user.username}`}
+                  to={`/profile/${prompt.profiles?.username}`}
                   className="font-medium hover:text-accent-500"
                 >
-                  @{MOCK_PROMPT.user.username}
+                  @{prompt.profiles?.username}
                 </Link>
                 <p className="text-sm text-[var(--muted-foreground)]">
-                  Created on {new Date(MOCK_PROMPT.created_at).toLocaleDateString()}
+                  Created on {new Date(prompt.created_at).toLocaleDateString()}
                 </p>
               </div>
             </div>
 
             {/* Categories & Platforms */}
             <div className="flex flex-wrap gap-2">
-              {MOCK_PROMPT.categories.map((cat) => (
+              {prompt.categories.map((cat) => (
                 <Badge key={cat} variant="secondary">
                   {cat}
                 </Badge>
               ))}
-              {MOCK_PROMPT.ai_platforms.map((platform) => (
+              {prompt.ai_platforms.map((platform) => (
                 <Badge key={platform} variant="outline">
                   {platform}
                 </Badge>
@@ -146,13 +285,12 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <StarRating
-                  value={MOCK_PROMPT.average_rating}
+                  value={averageRating}
                   readonly
                   size="md"
                 />
                 <span className="text-sm text-[var(--muted-foreground)]">
-                  {MOCK_PROMPT.average_rating.toFixed(1)} ({MOCK_PROMPT.rating_count}{" "}
-                  ratings)
+                  {averageRating.toFixed(1)} ({ratingCount} ratings)
                 </span>
               </div>
             </div>
@@ -162,12 +300,14 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
 
           <CardContent className="space-y-6 pt-6">
             {/* Description */}
-            <div>
-              <h2 className="mb-2 text-lg font-semibold">Description</h2>
-              <p className="text-[var(--muted-foreground)]">
-                {MOCK_PROMPT.description}
-              </p>
-            </div>
+            {prompt.description && (
+              <div>
+                <h2 className="mb-2 text-lg font-semibold">Description</h2>
+                <p className="text-[var(--muted-foreground)]">
+                  {prompt.description}
+                </p>
+              </div>
+            )}
 
             {/* Prompt Text */}
             <div>
@@ -194,7 +334,7 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
               </div>
               <div className="rounded-lg bg-[var(--muted)] p-4">
                 <pre className="whitespace-pre-wrap font-mono text-sm">
-                  {MOCK_PROMPT.prompt_text}
+                  {prompt.prompt_text}
                 </pre>
               </div>
             </div>
@@ -203,11 +343,15 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
             <div className="rounded-lg border border-[var(--border)] p-4">
               <h3 className="mb-3 font-semibold">Rate this prompt</h3>
               <div className="flex items-center gap-4">
-                <StarRating
-                  value={userRating}
-                  onChange={setUserRating}
-                  size="lg"
-                />
+                {isRating ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-accent-500" />
+                ) : (
+                  <StarRating
+                    value={userRating}
+                    onChange={handleRating}
+                    size="lg"
+                  />
+                )}
                 {userRating > 0 && (
                   <span className="text-sm text-[var(--muted-foreground)]">
                     You rated {userRating} stars

@@ -1,10 +1,16 @@
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import type { Route } from "./+types/profile.$username";
 import { Container } from "~/components/layout";
 import { Card, CardContent, CardFooter, CardHeader } from "~/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Badge } from "~/components/ui/badge";
+import { Skeleton } from "~/components/ui/skeleton";
 import { StarRating } from "~/components/custom";
+import { Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { getProfileByUsername, getUserPrompts, getUserStats } from "~/lib/api";
+import { useToast } from "~/hooks/use-toast";
+import type { Profile, PromptWithDetails } from "~/types";
 
 export function meta({ params }: Route.MetaArgs) {
   return [
@@ -13,62 +19,118 @@ export function meta({ params }: Route.MetaArgs) {
   ];
 }
 
-// Mock data
-const MOCK_USER = {
-  id: "user2",
-  username: "aiartist",
-  display_name: "AI Artist",
-  bio: "Creating beautiful AI art and sharing the best prompts.",
-  avatar_url: null,
-  created_at: "2024-02-01",
-};
-
-const MOCK_USER_PROMPTS = [
-  {
-    id: "2",
-    title: "Midjourney Portrait Generator",
-    description: "Create stunning portrait images with cinematic lighting",
-    categories: ["Image Generation", "Design"],
-    average_rating: 4.8,
-    rating_count: 256,
-  },
-  {
-    id: "5",
-    title: "Landscape Photography Style",
-    description: "Generate breathtaking landscape images in various styles",
-    categories: ["Image Generation", "Design"],
-    average_rating: 4.6,
-    rating_count: 142,
-  },
-];
-
 export default function UserProfile({ params }: Route.ComponentProps) {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [userPrompts, setUserPrompts] = useState<PromptWithDetails[]>([]);
+  const [stats, setStats] = useState({ promptCount: 0, totalViews: 0, totalCopies: 0, savedCount: 0 });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const userProfile = await getProfileByUsername(params.username);
+
+        if (!userProfile) {
+          toast({
+            title: "User not found",
+            description: "This user doesn't exist.",
+            variant: "destructive",
+          });
+          navigate("/");
+          return;
+        }
+
+        setProfile(userProfile);
+
+        const [prompts, userStats] = await Promise.all([
+          getUserPrompts(userProfile.id, false), // Only public prompts
+          getUserStats(userProfile.id),
+        ]);
+
+        setUserPrompts(prompts);
+        setStats(userStats);
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load profile.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [params.username, navigate, toast]);
+
+  if (isLoading) {
+    return (
+      <div className="py-8">
+        <Container>
+          <div className="mb-8 flex flex-col items-center gap-6 sm:flex-row sm:items-start">
+            <Skeleton className="h-24 w-24 rounded-full" />
+            <div className="flex-1 text-center sm:text-left">
+              <Skeleton className="h-8 w-48 mb-2" />
+              <Skeleton className="h-4 w-32 mb-4" />
+              <Skeleton className="h-4 w-64" />
+            </div>
+          </div>
+          <div className="mb-8 grid grid-cols-3 gap-4 sm:max-w-md">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Card key={i}>
+                <CardContent className="p-4 text-center">
+                  <Skeleton className="h-8 w-12 mx-auto mb-1" />
+                  <Skeleton className="h-4 w-16 mx-auto" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </Container>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return null;
+  }
+  // Calculate average rating
+  const avgRating = userPrompts.length > 0
+    ? userPrompts.reduce((acc, p) => acc + (p.prompt_ratings?.average_rating || 0), 0) / userPrompts.length
+    : 0;
+
+  const totalRatings = userPrompts.reduce((acc, p) => acc + (p.prompt_ratings?.rating_count || 0), 0);
+
   return (
     <div className="py-8">
       <Container>
         {/* Profile Header */}
         <div className="mb-8 flex flex-col items-center gap-6 sm:flex-row sm:items-start">
           <Avatar className="h-24 w-24">
-            <AvatarImage src={MOCK_USER.avatar_url || undefined} />
+            <AvatarImage src={profile.avatar_url || undefined} />
             <AvatarFallback className="text-2xl">
-              {MOCK_USER.username.charAt(0).toUpperCase()}
+              {profile.username.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
 
           <div className="flex-1 text-center sm:text-left">
             <h1 className="text-2xl font-bold">
-              {MOCK_USER.display_name || MOCK_USER.username}
+              {profile.display_name || profile.username}
             </h1>
             <p className="text-[var(--muted-foreground)]">
-              @{MOCK_USER.username}
+              @{profile.username}
             </p>
-            {MOCK_USER.bio && (
+            {profile.bio && (
               <p className="mt-4 max-w-lg text-[var(--muted-foreground)]">
-                {MOCK_USER.bio}
+                {profile.bio}
               </p>
             )}
             <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-              Member since {new Date(MOCK_USER.created_at).toLocaleDateString()}
+              Member since {new Date(profile.created_at).toLocaleDateString()}
             </p>
           </div>
         </div>
@@ -77,21 +139,19 @@ export default function UserProfile({ params }: Route.ComponentProps) {
         <div className="mb-8 grid grid-cols-3 gap-4 sm:max-w-md">
           <Card>
             <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold">{MOCK_USER_PROMPTS.length}</p>
+              <p className="text-2xl font-bold">{stats.promptCount}</p>
               <p className="text-sm text-[var(--muted-foreground)]">Prompts</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold">
-                {MOCK_USER_PROMPTS.reduce((acc, p) => acc + p.rating_count, 0)}
-              </p>
+              <p className="text-2xl font-bold">{totalRatings}</p>
               <p className="text-sm text-[var(--muted-foreground)]">Ratings</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold">4.7</p>
+              <p className="text-2xl font-bold">{avgRating.toFixed(1)}</p>
               <p className="text-sm text-[var(--muted-foreground)]">Avg</p>
             </CardContent>
           </Card>
@@ -100,11 +160,11 @@ export default function UserProfile({ params }: Route.ComponentProps) {
         {/* User's Prompts */}
         <div>
           <h2 className="mb-4 text-xl font-semibold">
-            Prompts by @{params.username}
+            Prompts by @{profile.username}
           </h2>
-          {MOCK_USER_PROMPTS.length > 0 ? (
+          {userPrompts.length > 0 ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {MOCK_USER_PROMPTS.map((prompt) => (
+              {userPrompts.map((prompt) => (
                 <Link key={prompt.id} to={`/prompts/${prompt.id}`}>
                   <Card className="h-full transition-shadow hover:shadow-lg">
                     <CardHeader className="pb-2">
@@ -114,7 +174,7 @@ export default function UserProfile({ params }: Route.ComponentProps) {
                     </CardHeader>
                     <CardContent className="pb-2">
                       <p className="text-sm text-[var(--muted-foreground)] line-clamp-2">
-                        {prompt.description}
+                        {prompt.description || "No description"}
                       </p>
                       <div className="mt-2 flex flex-wrap gap-1">
                         {prompt.categories.slice(0, 2).map((cat) => (
@@ -131,12 +191,12 @@ export default function UserProfile({ params }: Route.ComponentProps) {
                     <CardFooter className="pt-0">
                       <div className="flex items-center gap-2">
                         <StarRating
-                          value={prompt.average_rating}
+                          value={prompt.prompt_ratings?.average_rating || 0}
                           readonly
                           size="sm"
                         />
                         <span className="text-xs text-[var(--muted-foreground)]">
-                          ({prompt.rating_count})
+                          ({prompt.prompt_ratings?.rating_count || 0})
                         </span>
                       </div>
                     </CardFooter>

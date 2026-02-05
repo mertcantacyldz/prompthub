@@ -8,7 +8,7 @@ import {
 } from "react-router";
 
 import type { Route } from "./+types/root";
-import { ThemeProvider } from "~/context";
+import { ThemeProvider, AuthProvider } from "~/context";
 import { Header, Footer } from "~/components/layout";
 import { TooltipProvider, Toaster } from "~/components/ui";
 import "./app.css";
@@ -58,21 +58,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  // TODO: Replace with actual user from auth
-  const user = null;
-
   return (
     <ThemeProvider>
-      <TooltipProvider>
-        <div className="relative flex min-h-screen flex-col">
-          <Header user={user} />
-          <main className="flex-1">
-            <Outlet />
-          </main>
-          <Footer />
-        </div>
-        <Toaster />
-      </TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <div className="relative flex min-h-screen flex-col">
+            <Header />
+            <main className="flex-1">
+              <Outlet />
+            </main>
+            <Footer />
+          </div>
+          <Toaster />
+        </TooltipProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }
@@ -95,17 +94,19 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
 
   return (
     <ThemeProvider>
-      <main className="flex min-h-screen flex-col items-center justify-center p-4">
-        <div className="text-center">
-          <h1 className="text-6xl font-bold text-accent-500">{message}</h1>
-          <p className="mt-4 text-lg text-[var(--muted-foreground)]">{details}</p>
-          {stack && (
-            <pre className="mt-8 max-w-2xl overflow-x-auto rounded-lg bg-[var(--muted)] p-4 text-left text-sm">
-              <code>{stack}</code>
-            </pre>
-          )}
-        </div>
-      </main>
+      <AuthProvider>
+        <main className="flex min-h-screen flex-col items-center justify-center p-4">
+          <div className="text-center">
+            <h1 className="text-6xl font-bold text-accent-500">{message}</h1>
+            <p className="mt-4 text-lg text-[var(--muted-foreground)]">{details}</p>
+            {stack && (
+              <pre className="mt-8 max-w-2xl overflow-x-auto rounded-lg bg-[var(--muted)] p-4 text-left text-sm">
+                <code>{stack}</code>
+              </pre>
+            )}
+          </div>
+        </main>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

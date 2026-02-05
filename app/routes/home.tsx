@@ -4,12 +4,18 @@ import { Container } from "~/components/layout";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "~/components/ui/sheet";
+import { Skeleton } from "~/components/ui/skeleton";
 import { PromptList } from "~/components/prompt";
 import { SearchBar, FilterPanel } from "~/components/search";
 import { Pagination } from "~/components/custom";
 import { SlidersHorizontal, Sparkles } from "lucide-react";
 import { CATEGORIES } from "~/lib/utils/constants";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getPrompts, type PromptFilters } from "~/lib/api";
+import { toggleSavePrompt, isPromptSaved } from "~/lib/api";
+import { useAuth } from "~/context";
+import { useToast } from "~/hooks/use-toast";
+import type { PromptWithDetails } from "~/types";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -22,114 +28,76 @@ export function meta({}: Route.MetaArgs) {
   ];
 }
 
-// Temporary mock data - will be replaced with Supabase data
-const MOCK_PROMPTS = [
-  {
-    id: "1",
-    title: "Professional Email Writer",
-    description:
-      "Generate professional emails for any business context with proper tone and formatting.",
-    prompt_text: "You are an expert professional email writer...",
-    categories: ["Writing/Content", "Business"],
-    ai_platforms: ["ChatGPT", "Claude"],
-    average_rating: 4.5,
-    rating_count: 128,
-    user: { username: "promptmaster", avatar_url: null },
-  },
-  {
-    id: "2",
-    title: "Midjourney Portrait Generator",
-    description:
-      "Create stunning portrait images with cinematic lighting and professional composition.",
-    prompt_text: "Create a portrait with cinematic lighting...",
-    categories: ["Image Generation", "Design"],
-    ai_platforms: ["Midjourney"],
-    average_rating: 4.8,
-    rating_count: 256,
-    user: { username: "aiartist", avatar_url: null },
-  },
-  {
-    id: "3",
-    title: "Code Review Assistant",
-    description:
-      "Get detailed code reviews with suggestions for improvements, best practices, and potential bugs.",
-    prompt_text: "Review this code and provide detailed feedback...",
-    categories: ["Programming", "Technology"],
-    ai_platforms: ["ChatGPT", "Claude", "Copilot"],
-    average_rating: 4.7,
-    rating_count: 89,
-    user: { username: "devguru", avatar_url: null },
-  },
-  {
-    id: "4",
-    title: "SEO Meta Description Generator",
-    description:
-      "Generate compelling meta descriptions optimized for search engines and click-through rates.",
-    prompt_text: "Generate an SEO-optimized meta description...",
-    categories: ["SEO", "Marketing"],
-    ai_platforms: ["ChatGPT", "Claude"],
-    average_rating: 4.3,
-    rating_count: 67,
-    user: { username: "seoexpert", avatar_url: null },
-  },
-  {
-    id: "5",
-    title: "Creative Story Writer",
-    description:
-      "Generate engaging short stories with vivid characters and compelling plots.",
-    prompt_text: "Write a creative short story about...",
-    categories: ["Writing/Content", "Fun/Creative"],
-    ai_platforms: ["ChatGPT", "Claude"],
-    average_rating: 4.6,
-    rating_count: 203,
-    user: { username: "storyteller", avatar_url: null },
-  },
-  {
-    id: "6",
-    title: "Legal Document Analyzer",
-    description:
-      "Analyze legal documents and contracts for key terms, risks, and important clauses.",
-    prompt_text: "Analyze this legal document and highlight...",
-    categories: ["Legal", "Business"],
-    ai_platforms: ["ChatGPT", "Claude"],
-    average_rating: 4.4,
-    rating_count: 45,
-    user: { username: "legalai", avatar_url: null },
-  },
-  {
-    id: "7",
-    title: "Workout Plan Generator",
-    description:
-      "Create personalized workout plans based on fitness goals, equipment, and time constraints.",
-    prompt_text: "Create a workout plan for...",
-    categories: ["Health", "Life Coach"],
-    ai_platforms: ["ChatGPT"],
-    average_rating: 4.2,
-    rating_count: 156,
-    user: { username: "fitcoach", avatar_url: null },
-  },
-  {
-    id: "8",
-    title: "React Component Generator",
-    description:
-      "Generate clean, typed React components with proper hooks and best practices.",
-    prompt_text: "Generate a React component that...",
-    categories: ["Programming", "Technology"],
-    ai_platforms: ["ChatGPT", "Claude", "Copilot"],
-    average_rating: 4.9,
-    rating_count: 312,
-    user: { username: "reactdev", avatar_url: null },
-  },
-];
+const PROMPTS_PER_PAGE = 12;
 
 export default function Home() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const [prompts, setPrompts] = useState<PromptWithDetails[]>([]);
   const [savedPrompts, setSavedPrompts] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   const currentPage = parseInt(searchParams.get("page") || "1");
-  const totalPages = 5; // Mock pagination
+
+  // Fetch prompts
+  useEffect(() => {
+    const fetchPrompts = async () => {
+      setIsLoading(true);
+      try {
+        const filters: PromptFilters = {
+          page: currentPage,
+          limit: PROMPTS_PER_PAGE,
+          search: searchParams.get("q") || undefined,
+          categories: searchParams.getAll("category"),
+          platforms: searchParams.getAll("platform"),
+          modality: searchParams.get("modality") || undefined,
+          sortBy: (searchParams.get("sort") as PromptFilters["sortBy"]) || "newest",
+        };
+
+        const result = await getPrompts(filters);
+        setPrompts(result.data);
+        setTotalPages(result.totalPages);
+        setTotalCount(result.count);
+      } catch (error) {
+        console.error("Error fetching prompts:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load prompts. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPrompts();
+  }, [searchParams, currentPage, toast]);
+
+  // Load saved prompts for logged-in user
+  useEffect(() => {
+    const loadSavedStatus = async () => {
+      if (!user || prompts.length === 0) return;
+
+      const savedIds: string[] = [];
+      for (const prompt of prompts) {
+        try {
+          const isSaved = await isPromptSaved(user.id, prompt.id);
+          if (isSaved) savedIds.push(prompt.id);
+        } catch {
+          // Ignore errors
+        }
+      }
+      setSavedPrompts(savedIds);
+    };
+
+    loadSavedStatus();
+  }, [user, prompts]);
 
   const handlePageChange = (page: number) => {
     const params = new URLSearchParams(searchParams);
@@ -137,10 +105,35 @@ export default function Home() {
     navigate(`?${params.toString()}`);
   };
 
-  const handleSave = (id: string) => {
-    setSavedPrompts((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
-    );
+  const handleSave = async (id: string) => {
+    if (!user) {
+      toast({
+        title: "Login required",
+        description: "Please log in to save prompts.",
+        variant: "destructive",
+      });
+      navigate("/auth/login");
+      return;
+    }
+
+    try {
+      const isSaved = await toggleSavePrompt(user.id, id);
+      setSavedPrompts((prev) =>
+        isSaved ? [...prev, id] : prev.filter((p) => p !== id)
+      );
+      toast({
+        title: isSaved ? "Prompt saved" : "Prompt removed",
+        description: isSaved
+          ? "Added to your saved prompts."
+          : "Removed from your saved prompts.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save prompt. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleCategoryClick = (category: string) => {
@@ -240,7 +233,7 @@ export default function Home() {
                   {hasActiveFilters ? "Filtered Results" : "Trending Prompts"}
                 </h2>
                 <p className="text-sm text-[var(--muted-foreground)]">
-                  Showing {MOCK_PROMPTS.length} prompts
+                  {isLoading ? "Loading..." : `Showing ${totalCount} prompts`}
                 </p>
               </div>
 
@@ -269,11 +262,37 @@ export default function Home() {
             </div>
 
             {/* Prompt Grid */}
-            <PromptList
-              prompts={MOCK_PROMPTS}
-              savedPromptIds={savedPrompts}
-              onSave={handleSave}
-            />
+            {isLoading ? (
+              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="rounded-lg border border-[var(--border)] p-4">
+                    <Skeleton className="h-6 w-3/4 mb-2" />
+                    <Skeleton className="h-4 w-full mb-1" />
+                    <Skeleton className="h-4 w-2/3 mb-4" />
+                    <div className="flex gap-2 mb-4">
+                      <Skeleton className="h-5 w-16" />
+                      <Skeleton className="h-5 w-20" />
+                    </div>
+                    <div className="flex justify-between">
+                      <Skeleton className="h-8 w-24" />
+                      <Skeleton className="h-8 w-8" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : prompts.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-lg text-[var(--muted-foreground)]">
+                  No prompts found. Try adjusting your filters.
+                </p>
+              </div>
+            ) : (
+              <PromptList
+                prompts={prompts}
+                savedPromptIds={savedPrompts}
+                onSave={handleSave}
+              />
+            )}
 
             {/* Pagination */}
             <div className="mt-8">

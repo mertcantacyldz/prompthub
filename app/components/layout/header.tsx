@@ -1,5 +1,5 @@
-import { Link } from "react-router";
-import { Menu, Plus, Search, User, LogOut, Settings, Bookmark } from "lucide-react";
+import { Link, useNavigate } from "react-router";
+import { Plus, Search, User, LogOut, Settings, Bookmark } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import {
@@ -12,17 +12,29 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { ThemeToggle } from "~/components/custom";
 import { Container } from "./container";
+import { useAuth } from "~/context";
+import { useToast } from "~/hooks/use-toast";
 
-interface HeaderProps {
-  user?: {
-    id: string;
-    email: string;
-    username: string;
-    avatar_url?: string | null;
-  } | null;
-}
+export function Header() {
+  const navigate = useNavigate();
+  const { user, profile, signOut, isLoading } = useAuth();
+  const { toast } = useToast();
 
-export function Header({ user }: HeaderProps) {
+  const displayUser = profile ? {
+    id: profile.id,
+    email: profile.email,
+    username: profile.username,
+    avatar_url: profile.avatar_url,
+  } : null;
+
+  const handleLogout = async () => {
+    await signOut();
+    toast({
+      title: "Logged out",
+      description: "You have been successfully logged out.",
+    });
+    navigate("/");
+  };
   return (
     <header className="sticky top-0 z-50 w-full border-b border-[var(--border)] bg-[var(--background)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--background)]/60">
       <Container>
@@ -65,7 +77,7 @@ export function Header({ user }: HeaderProps) {
             {/* Theme Toggle */}
             <ThemeToggle />
 
-            {user ? (
+            {displayUser ? (
               <>
                 {/* Add Prompt Button */}
                 <Button asChild className="hidden sm:inline-flex">
@@ -89,11 +101,11 @@ export function Header({ user }: HeaderProps) {
                     >
                       <Avatar className="h-10 w-10">
                         <AvatarImage
-                          src={user.avatar_url || undefined}
-                          alt={user.username}
+                          src={displayUser.avatar_url || undefined}
+                          alt={displayUser.username}
                         />
                         <AvatarFallback>
-                          {user.username.charAt(0).toUpperCase()}
+                          {displayUser.username.charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                     </Button>
@@ -101,9 +113,9 @@ export function Header({ user }: HeaderProps) {
                   <DropdownMenuContent align="end" className="w-56">
                     <div className="flex items-center justify-start gap-2 p-2">
                       <div className="flex flex-col space-y-1 leading-none">
-                        <p className="font-medium">{user.username}</p>
+                        <p className="font-medium">{displayUser.username}</p>
                         <p className="text-xs text-[var(--muted-foreground)]">
-                          {user.email}
+                          {displayUser.email}
                         </p>
                       </div>
                     </div>
@@ -127,13 +139,9 @@ export function Header({ user }: HeaderProps) {
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                      <form action="/auth/logout" method="post">
-                        <button type="submit" className="flex w-full items-center">
-                          <LogOut className="mr-2 h-4 w-4" />
-                          Log out
-                        </button>
-                      </form>
+                    <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Log out
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

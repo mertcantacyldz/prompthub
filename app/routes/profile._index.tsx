@@ -1,12 +1,18 @@
-import { Link } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { Container } from "~/components/layout";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "~/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Badge } from "~/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { Skeleton } from "~/components/ui/skeleton";
 import { StarRating } from "~/components/custom";
-import { Edit, Bookmark, Grid, Settings } from "lucide-react";
+import { Edit, Bookmark, Grid, Settings, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { getUserPrompts, getSavedPrompts, getUserStats } from "~/lib/api";
+import { useAuth } from "~/context";
+import { useToast } from "~/hooks/use-toast";
+import type { PromptWithDetails } from "~/types";
 
 export function meta() {
   return [
@@ -15,58 +21,84 @@ export function meta() {
   ];
 }
 
-// Mock data
-const MOCK_USER = {
-  id: "user1",
-  username: "promptmaster",
-  email: "user@example.com",
-  display_name: "Prompt Master",
-  bio: "AI enthusiast and prompt engineer. Creating useful prompts for everyone.",
-  avatar_url: null,
-  created_at: "2024-01-01",
-};
-
-const MOCK_USER_PROMPTS = [
-  {
-    id: "1",
-    title: "Professional Email Writer",
-    description: "Generate professional emails for any business context",
-    categories: ["Writing/Content", "Business"],
-    average_rating: 4.5,
-    rating_count: 128,
-  },
-  {
-    id: "2",
-    title: "Code Review Assistant",
-    description: "Get detailed code reviews with suggestions",
-    categories: ["Programming", "Technology"],
-    average_rating: 4.7,
-    rating_count: 89,
-  },
-];
-
-const MOCK_SAVED_PROMPTS = [
-  {
-    id: "3",
-    title: "Midjourney Portrait Generator",
-    description: "Create stunning portrait images",
-    categories: ["Image Generation", "Design"],
-    average_rating: 4.8,
-    rating_count: 256,
-    user: { username: "aiartist" },
-  },
-];
-
 export default function Profile() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { user, profile, isLoading: authLoading } = useAuth();
+  const { toast } = useToast();
+
+  const [userPrompts, setUserPrompts] = useState<PromptWithDetails[]>([]);
+  const [savedPrompts, setSavedPrompts] = useState<PromptWithDetails[]>([]);
+  const [stats, setStats] = useState({ promptCount: 0, totalViews: 0, totalCopies: 0, savedCount: 0 });
+  const [isLoading, setIsLoading] = useState(true);
+
+  const defaultTab = searchParams.get("tab") || "prompts";
+
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!authLoading && !user) {
+      toast({
+        title: "Login required",
+        description: "Please log in to view your profile.",
+        variant: "destructive",
+      });
+      navigate("/auth/login");
+    }
+  }, [user, authLoading, navigate, toast]);
+
+  // Fetch user data
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user) return;
+
+      setIsLoading(true);
+      try {
+        const [prompts, saved, userStats] = await Promise.all([
+          getUserPrompts(user.id, true), // Include private prompts
+          getSavedPrompts(user.id),
+          getUserStats(user.id),
+        ]);
+
+        setUserPrompts(prompts);
+        setSavedPrompts(saved);
+        setStats(userStats);
+      } catch (error) {
+        console.error("Error fetching profile data:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load profile data.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchData();
+    }
+  }, [user, toast]);
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-accent-500" />
+      </div>
+    );
+  }
+
+  if (!user || !profile) {
+    return null;
+  }
   return (
     <div className="py-8">
       <Container>
         {/* Profile Header */}
         <div className="mb-8 flex flex-col items-center gap-6 sm:flex-row sm:items-start">
           <Avatar className="h-24 w-24">
-            <AvatarImage src={MOCK_USER.avatar_url || undefined} />
+            <AvatarImage src={profile.avatar_url || undefined} />
             <AvatarFallback className="text-2xl">
-              {MOCK_USER.username.charAt(0).toUpperCase()}
+              {profile.username.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
 
@@ -74,15 +106,15 @@ export default function Profile() {
             <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
               <div>
                 <h1 className="text-2xl font-bold">
-                  {MOCK_USER.display_name || MOCK_USER.username}
+                  {profile.display_name || profile.username}
                 </h1>
                 <p className="text-[var(--muted-foreground)]">
-                  @{MOCK_USER.username}
+                  @{profile.username}
                 </p>
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" asChild>
-                  <Link to="/profile/edit">
+                  <Link to="/settings">
                     <Edit className="mr-2 h-4 w-4" />
                     Edit Profile
                   </Link>
@@ -94,13 +126,13 @@ export default function Profile() {
                 </Button>
               </div>
             </div>
-            {MOCK_USER.bio && (
+            {profile.bio && (
               <p className="mt-4 max-w-lg text-[var(--muted-foreground)]">
-                {MOCK_USER.bio}
+                {profile.bio}
               </p>
             )}
             <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-              Member since {new Date(MOCK_USER.created_at).toLocaleDateString()}
+              Member since {new Date(profile.created_at).toLocaleDateString()}
             </p>
           </div>
         </div>
@@ -109,36 +141,50 @@ export default function Profile() {
         <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Card>
             <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold">{MOCK_USER_PROMPTS.length}</p>
+              {isLoading ? (
+                <Skeleton className="h-8 w-12 mx-auto mb-1" />
+              ) : (
+                <p className="text-2xl font-bold">{stats.promptCount}</p>
+              )}
               <p className="text-sm text-[var(--muted-foreground)]">Prompts</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold">{MOCK_SAVED_PROMPTS.length}</p>
+              {isLoading ? (
+                <Skeleton className="h-8 w-12 mx-auto mb-1" />
+              ) : (
+                <p className="text-2xl font-bold">{stats.savedCount}</p>
+              )}
               <p className="text-sm text-[var(--muted-foreground)]">Saved</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold">
-                {MOCK_USER_PROMPTS.reduce((acc, p) => acc + p.rating_count, 0)}
-              </p>
+              {isLoading ? (
+                <Skeleton className="h-8 w-12 mx-auto mb-1" />
+              ) : (
+                <p className="text-2xl font-bold">{stats.totalViews}</p>
+              )}
               <p className="text-sm text-[var(--muted-foreground)]">
-                Total Ratings
+                Total Views
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold">4.6</p>
-              <p className="text-sm text-[var(--muted-foreground)]">Avg Rating</p>
+              {isLoading ? (
+                <Skeleton className="h-8 w-12 mx-auto mb-1" />
+              ) : (
+                <p className="text-2xl font-bold">{stats.totalCopies}</p>
+              )}
+              <p className="text-sm text-[var(--muted-foreground)]">Total Copies</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="prompts">
+        <Tabs defaultValue={defaultTab}>
           <TabsList className="w-full justify-start">
             <TabsTrigger value="prompts" className="gap-2">
               <Grid className="h-4 w-4" />
@@ -151,19 +197,43 @@ export default function Profile() {
           </TabsList>
 
           <TabsContent value="prompts" className="mt-6">
-            {MOCK_USER_PROMPTS.length > 0 ? (
+            {isLoading ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {MOCK_USER_PROMPTS.map((prompt) => (
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Card key={i}>
+                    <CardHeader className="pb-2">
+                      <Skeleton className="h-5 w-3/4" />
+                    </CardHeader>
+                    <CardContent className="pb-2">
+                      <Skeleton className="h-4 w-full mb-1" />
+                      <Skeleton className="h-4 w-2/3" />
+                    </CardContent>
+                    <CardFooter>
+                      <Skeleton className="h-4 w-24" />
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            ) : userPrompts.length > 0 ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {userPrompts.map((prompt) => (
                   <Link key={prompt.id} to={`/prompts/${prompt.id}`}>
                     <Card className="h-full transition-shadow hover:shadow-lg">
                       <CardHeader className="pb-2">
-                        <h3 className="font-semibold line-clamp-1">
-                          {prompt.title}
-                        </h3>
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-semibold line-clamp-1">
+                            {prompt.title}
+                          </h3>
+                          {!prompt.is_public && (
+                            <Badge variant="outline" className="text-xs">
+                              Private
+                            </Badge>
+                          )}
+                        </div>
                       </CardHeader>
                       <CardContent className="pb-2">
                         <p className="text-sm text-[var(--muted-foreground)] line-clamp-2">
-                          {prompt.description}
+                          {prompt.description || "No description"}
                         </p>
                         <div className="mt-2 flex flex-wrap gap-1">
                           {prompt.categories.slice(0, 2).map((cat) => (
@@ -180,12 +250,12 @@ export default function Profile() {
                       <CardFooter className="pt-0">
                         <div className="flex items-center gap-2">
                           <StarRating
-                            value={prompt.average_rating}
+                            value={prompt.prompt_ratings?.average_rating || 0}
                             readonly
                             size="sm"
                           />
                           <span className="text-xs text-[var(--muted-foreground)]">
-                            ({prompt.rating_count})
+                            ({prompt.prompt_ratings?.rating_count || 0})
                           </span>
                         </div>
                       </CardFooter>
@@ -206,9 +276,26 @@ export default function Profile() {
           </TabsContent>
 
           <TabsContent value="saved" className="mt-6">
-            {MOCK_SAVED_PROMPTS.length > 0 ? (
+            {isLoading ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {MOCK_SAVED_PROMPTS.map((prompt) => (
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Card key={i}>
+                    <CardHeader className="pb-2">
+                      <Skeleton className="h-5 w-3/4" />
+                    </CardHeader>
+                    <CardContent className="pb-2">
+                      <Skeleton className="h-4 w-full mb-1" />
+                      <Skeleton className="h-4 w-2/3" />
+                    </CardContent>
+                    <CardFooter>
+                      <Skeleton className="h-4 w-24" />
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            ) : savedPrompts.length > 0 ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {savedPrompts.map((prompt) => (
                   <Link key={prompt.id} to={`/prompts/${prompt.id}`}>
                     <Card className="h-full transition-shadow hover:shadow-lg">
                       <CardHeader className="pb-2">
@@ -218,7 +305,7 @@ export default function Profile() {
                       </CardHeader>
                       <CardContent className="pb-2">
                         <p className="text-sm text-[var(--muted-foreground)] line-clamp-2">
-                          {prompt.description}
+                          {prompt.description || "No description"}
                         </p>
                         <div className="mt-2 flex flex-wrap gap-1">
                           {prompt.categories.slice(0, 2).map((cat) => (
@@ -236,16 +323,16 @@ export default function Profile() {
                         <div className="flex w-full items-center justify-between">
                           <div className="flex items-center gap-2">
                             <StarRating
-                              value={prompt.average_rating}
+                              value={prompt.prompt_ratings?.average_rating || 0}
                               readonly
                               size="sm"
                             />
                             <span className="text-xs text-[var(--muted-foreground)]">
-                              ({prompt.rating_count})
+                              ({prompt.prompt_ratings?.rating_count || 0})
                             </span>
                           </div>
                           <span className="text-xs text-[var(--muted-foreground)]">
-                            @{prompt.user.username}
+                            @{prompt.profiles?.username}
                           </span>
                         </div>
                       </CardFooter>
