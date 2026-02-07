@@ -1,11 +1,11 @@
 import { supabase } from "~/lib/supabase";
-import type { Prompt, PromptInsert, PromptUpdate, PromptWithDetails } from "~/types";
+import type { Prompt, PromptInsert, PromptUpdate, PromptWithDetails, InputModality } from "~/types";
 
 export interface PromptFilters {
   search?: string;
   categories?: string[];
   platforms?: string[];
-  modality?: string;
+  modality?: InputModality;
   sortBy?: "newest" | "oldest" | "most_viewed" | "most_copied" | "highest_rated";
   userId?: string;
   isPublic?: boolean;
@@ -18,6 +18,12 @@ export interface PaginatedResponse<T> {
   count: number;
   page: number;
   totalPages: number;
+}
+
+// Internal type for Supabase query results
+interface RawPromptResponse extends Prompt {
+  profiles: { username: string; avatar_url: string | null } | { username: string; avatar_url: string | null }[];
+  prompt_ratings: { rating_count: number; average_rating: number } | { rating_count: number; average_rating: number }[];
 }
 
 // Get prompts with filters and pagination
@@ -39,7 +45,7 @@ export async function getPrompts(filters: PromptFilters = {}): Promise<Paginated
     .select(`
       *,
       profiles!prompts_user_id_fkey (username, avatar_url),
-      prompt_ratings (prompt_id, rating_count, average_rating)
+      prompt_ratings (rating_count, average_rating)
     `, { count: "exact" });
 
   // Filter by public/private
@@ -104,13 +110,19 @@ export async function getPrompts(filters: PromptFilters = {}): Promise<Paginated
     throw error;
   }
 
-  const totalPages = Math.ceil((count || 0) / limit);
-
   return {
-    data: (data || []) as PromptWithDetails[],
+    data: ((data as unknown as RawPromptResponse[]) || []).map(p => {
+      const rating = Array.isArray(p.prompt_ratings) ? p.prompt_ratings[0] : p.prompt_ratings;
+      const profiles = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
+      return {
+        ...(p as unknown as Prompt),
+        profiles: profiles || { username: "unknown", avatar_url: null },
+        prompt_ratings: (rating as PromptWithDetails['prompt_ratings']) || null
+      } as PromptWithDetails;
+    }),
     count: count || 0,
-    page,
-    totalPages,
+    page: filters.page || 1,
+    totalPages: Math.ceil((count || 0) / (filters.limit || 10)),
   };
 }
 
@@ -134,7 +146,17 @@ export async function getPromptById(id: string): Promise<PromptWithDetails | nul
     throw error;
   }
 
-  return data as PromptWithDetails;
+  if (data) {
+    const rating = Array.isArray(data.prompt_ratings) ? data.prompt_ratings[0] : data.prompt_ratings;
+    const profiles = Array.isArray(data.profiles) ? data.profiles[0] : data.profiles;
+    return {
+      ...(data as Prompt),
+      profiles: profiles as PromptWithDetails['profiles'],
+      prompt_ratings: (rating as PromptWithDetails['prompt_ratings']) || null,
+    };
+  }
+
+  return null;
 }
 
 // Create new prompt
@@ -186,34 +208,18 @@ export async function deletePrompt(id: string): Promise<void> {
 // Increment view count
 export async function incrementViewCount(id: string): Promise<void> {
   const { error } = await supabase.rpc("increment_view_count", { prompt_id: id });
-
-  // Fallback if RPC doesn't exist
   if (error) {
-    await supabase
-      .from("prompts")
-      .update({ view_count: supabase.rpc("increment", { x: 1 }) as unknown as number })
-      .eq("id", id);
+    console.error("Error incrementing view count:", error);
+    throw error;
   }
 }
 
 // Increment copy count
 export async function incrementCopyCount(id: string): Promise<void> {
   const { error } = await supabase.rpc("increment_copy_count", { prompt_id: id });
-
-  // Fallback if RPC doesn't exist
   if (error) {
-    const { data: prompt } = await supabase
-      .from("prompts")
-      .select("copy_count")
-      .eq("id", id)
-      .single();
-
-    if (prompt) {
-      await supabase
-        .from("prompts")
-        .update({ copy_count: (prompt.copy_count || 0) + 1 })
-        .eq("id", id);
-    }
+    console.error("Error incrementing copy count:", error);
+    throw error;
   }
 }
 
@@ -240,5 +246,13 @@ export async function getUserPrompts(userId: string, includePrivate = false): Pr
     throw error;
   }
 
-  return (data || []) as PromptWithDetails[];
+  return ((data as unknown as RawPromptResponse[]) || []).map(p => {
+    const rating = Array.isArray(p.prompt_ratings) ? p.prompt_ratings[0] : p.prompt_ratings;
+    const profiles = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
+    return {
+      ...(p as unknown as Prompt),
+      profiles: profiles || { username: "unknown", avatar_url: null },
+      prompt_ratings: (rating as PromptWithDetails['prompt_ratings']) || null,
+    } as PromptWithDetails;
+  });
 }

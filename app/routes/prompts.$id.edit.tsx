@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, Form, useActionData, useNavigation, useLoaderData, redirect, data } from "react-router";
 import type { Route } from "./+types/prompts.$id.edit";
 import { Container } from "~/components/layout";
 import { Button } from "~/components/ui/button";
@@ -8,7 +8,6 @@ import { Label } from "~/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Switch } from "~/components/ui/switch";
 import { Badge } from "~/components/ui/badge";
-import { Skeleton } from "~/components/ui/skeleton";
 import { CATEGORIES, AI_PLATFORMS, INPUT_MODALITIES } from "~/lib/utils/constants";
 import { X, ArrowLeft, Trash2, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -21,10 +20,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "~/components/ui/dialog";
-import { getPromptById, updatePrompt, deletePrompt } from "~/lib/api";
+import { getSupabaseServerClient } from "~/lib/supabase";
 import { useAuth } from "~/context";
 import { useToast } from "~/hooks/use-toast";
-import type { PromptWithDetails, InputModality } from "~/types";
+import type { Prompt, PromptUpdate, PromptWithDetails, InputModality } from "~/types";
 
 export function meta() {
   return [
@@ -33,85 +32,145 @@ export function meta() {
   ];
 }
 
+export async function loader({ request, params }: Route.LoaderArgs) {
+  const { supabase } = getSupabaseServerClient(request);
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return redirect(`/auth/login?redirectTo=/prompts/${params.id}/edit`);
+  }
+
+  const { data: prompt, error } = await supabase
+    .from("prompts")
+    .select(`
+      *,
+      profiles (
+        id,
+        username,
+        display_name,
+        avatar_url
+      )
+    `)
+    .eq("id", params.id!)
+    .single();
+
+  if (error || !prompt) {
+    return redirect("/?error=prompt_not_found");
+  }
+
+  // Check ownership
+  if (prompt.user_id !== user.id) {
+    return redirect(`/prompts/${params.id}?error=unauthorized`);
+  }
+
+  const promptProfile = Array.isArray(prompt.profiles) ? prompt.profiles[0] : prompt.profiles;
+
+  return {
+    prompt: {
+      ...(prompt as unknown as Prompt),
+      profiles: promptProfile || { id: "", username: "unknown", display_name: null, avatar_url: null },
+      prompt_ratings: null // Ratings view not joined here in select
+    } as PromptWithDetails
+  };
+}
+
+export async function action({ request, params }: Route.ActionArgs) {
+  const { supabase, headers } = getSupabaseServerClient(request);
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return redirect("/auth/login", { headers });
+  }
+
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+
+  if (intent === "delete_prompt") {
+    const { error } = await supabase
+      .from("prompts")
+      .delete()
+      .eq("id", params.id!)
+      .eq("user_id", user.id);
+
+    if (error) {
+      return data({ error: "Failed to delete prompt." }, { status: 500, headers });
+    }
+
+    return redirect("/", { headers });
+  }
+
+  if (intent === "edit_prompt") {
+    const title = formData.get("title") as string;
+    const description = formData.get("description") as string;
+    const prompt_text = formData.get("prompt_text") as string;
+    const categories = formData.getAll("categories") as string[];
+    const ai_platforms = formData.getAll("ai_platforms") as string[];
+    const input_modality = formData.get("input_modality") as InputModality;
+    const is_public = formData.get("is_public") === "true";
+
+    // Validation
+    if (title.trim().length < 3) {
+      return data({ error: "Title must be at least 3 characters long." }, { status: 400 });
+    }
+    if (prompt_text.trim().length < 10) {
+      return data({ error: "Prompt text must be at least 10 characters long." }, { status: 400 });
+    }
+    if (categories.length === 0) {
+      return data({ error: "Please select at least one category." }, { status: 400 });
+    }
+    if (ai_platforms.length === 0) {
+      return data({ error: "Please select at least one AI platform." }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from("prompts")
+      .update({
+        title: title.trim(),
+        description: description.trim() || null,
+        prompt_text: prompt_text.trim(),
+        categories,
+        ai_platforms,
+        input_modality,
+        is_public,
+        updated_at: new Date().toISOString(),
+      } as PromptUpdate)
+      .eq("id", params.id!)
+      .eq("user_id", user.id);
+
+    if (error) {
+      return data({ error: "Failed to update prompt." }, { status: 500, headers });
+    }
+
+    return redirect(`/prompts/${params.id}`, { headers });
+  }
+
+  return null;
+}
+
 export default function EditPrompt({ params }: Route.ComponentProps) {
+  const { prompt } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
-  const { user, isLoading: authLoading } = useAuth();
+  const actionData = useActionData<typeof action>();
+  const navigation = useNavigation();
   const { toast } = useToast();
 
-  const [prompt, setPrompt] = useState<PromptWithDetails | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [promptText, setPromptText] = useState("");
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
-  const [inputModality, setInputModality] = useState<InputModality>("text");
-  const [isPublic, setIsPublic] = useState(true);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(prompt.categories);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(prompt.ai_platforms);
+  const [isPublic, setIsPublic] = useState(prompt.is_public);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  // Fetch prompt data
+  const isSubmitting = navigation.state === "submitting" && navigation.formData?.get("intent") === "edit_prompt";
+  const isDeleting = navigation.state === "submitting" && navigation.formData?.get("intent") === "delete_prompt";
+
   useEffect(() => {
-    const fetchPrompt = async () => {
-      setIsLoading(true);
-      try {
-        const data = await getPromptById(params.id);
-        if (!data) {
-          toast({
-            title: "Not found",
-            description: "This prompt doesn't exist.",
-            variant: "destructive",
-          });
-          navigate("/");
-          return;
-        }
-
-        // Check ownership
-        if (user && data.user_id !== user.id) {
-          toast({
-            title: "Access denied",
-            description: "You can only edit your own prompts.",
-            variant: "destructive",
-          });
-          navigate(`/prompts/${params.id}`);
-          return;
-        }
-
-        setPrompt(data);
-        setTitle(data.title);
-        setDescription(data.description || "");
-        setPromptText(data.prompt_text);
-        setSelectedCategories(data.categories);
-        setSelectedPlatforms(data.ai_platforms);
-        setInputModality(data.input_modality);
-        setIsPublic(data.is_public);
-      } catch (error) {
-        console.error("Error fetching prompt:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load prompt.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (!authLoading) {
-      if (!user) {
-        toast({
-          title: "Login required",
-          description: "Please log in to edit prompts.",
-          variant: "destructive",
-        });
-        navigate("/auth/login");
-      } else {
-        fetchPrompt();
-      }
+    if (actionData?.error) {
+      toast({
+        title: "Error",
+        description: actionData.error,
+        variant: "destructive",
+      });
     }
-  }, [params.id, user, authLoading, navigate, toast]);
+  }, [actionData, toast]);
 
   const toggleCategory = (category: string) => {
     setSelectedCategories((prev) =>
@@ -128,139 +187,6 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
         : [...prev, platform]
     );
   };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!prompt) return;
-
-    // Validation
-    if (!title.trim()) {
-      toast({
-        title: "Validation error",
-        description: "Please enter a title.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!promptText.trim()) {
-      toast({
-        title: "Validation error",
-        description: "Please enter the prompt text.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (selectedCategories.length === 0) {
-      toast({
-        title: "Validation error",
-        description: "Please select at least one category.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (selectedPlatforms.length === 0) {
-      toast({
-        title: "Validation error",
-        description: "Please select at least one AI platform.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      await updatePrompt(prompt.id, {
-        title: title.trim(),
-        description: description.trim() || null,
-        prompt_text: promptText.trim(),
-        categories: selectedCategories,
-        ai_platforms: selectedPlatforms,
-        input_modality: inputModality,
-        is_public: isPublic,
-      });
-
-      toast({
-        title: "Prompt updated!",
-        description: "Your changes have been saved.",
-      });
-
-      navigate(`/prompts/${prompt.id}`);
-    } catch (error) {
-      console.error("Error updating prompt:", error);
-      toast({
-        title: "Error",
-        description: "Failed to update prompt. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!prompt) return;
-
-    setIsDeleting(true);
-
-    try {
-      await deletePrompt(prompt.id);
-
-      toast({
-        title: "Prompt deleted",
-        description: "Your prompt has been permanently deleted.",
-      });
-
-      navigate("/");
-    } catch (error) {
-      console.error("Error deleting prompt:", error);
-      toast({
-        title: "Error",
-        description: "Failed to delete prompt. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsDeleting(false);
-      setShowDeleteDialog(false);
-    }
-  };
-
-  if (authLoading || isLoading) {
-    return (
-      <div className="py-8">
-        <Container className="max-w-3xl">
-          <Skeleton className="h-6 w-32 mb-6" />
-          <Card>
-            <CardHeader>
-              <Skeleton className="h-8 w-48" />
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-24 w-full" />
-              </div>
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-40 w-full" />
-              </div>
-            </CardContent>
-          </Card>
-        </Container>
-      </div>
-    );
-  }
-
-  if (!prompt) {
-    return null;
-  }
 
   return (
     <div className="py-8">
@@ -279,7 +205,7 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
             <CardTitle className="text-2xl">Edit Prompt</CardTitle>
             <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
               <DialogTrigger asChild>
-                <Button variant="destructive" size="sm" disabled={isSubmitting}>
+                <Button variant="destructive" size="sm" disabled={isSubmitting || isDeleting}>
                   <Trash2 className="mr-2 h-4 w-4" />
                   Delete
                 </Button>
@@ -300,29 +226,41 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
                   >
                     Cancel
                   </Button>
-                  <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
-                    {isDeleting ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Deleting...
-                      </>
-                    ) : (
-                      "Delete"
-                    )}
-                  </Button>
+                  <Form method="post">
+                    <input type="hidden" name="intent" value="delete_prompt" />
+                    <Button variant="destructive" type="submit" disabled={isDeleting}>
+                      {isDeleting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        "Delete"
+                      )}
+                    </Button>
+                  </Form>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <Form method="post" className="space-y-6">
+              <input type="hidden" name="intent" value="edit_prompt" />
+              <input type="hidden" name="is_public" value={String(isPublic)} />
+              {selectedCategories.map(c => (
+                <input key={c} type="hidden" name="categories" value={c} />
+              ))}
+              {selectedPlatforms.map(p => (
+                <input key={p} type="hidden" name="ai_platforms" value={p} />
+              ))}
+
               {/* Title */}
               <div className="space-y-2">
                 <Label htmlFor="title">Title *</Label>
                 <Input
                   id="title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  name="title"
+                  defaultValue={prompt.title}
                   disabled={isSubmitting}
                   required
                 />
@@ -333,8 +271,8 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
                 <Label htmlFor="description">Description</Label>
                 <Textarea
                   id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  name="description"
+                  defaultValue={prompt.description || ""}
                   disabled={isSubmitting}
                   rows={3}
                 />
@@ -345,8 +283,8 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
                 <Label htmlFor="prompt_text">Prompt Text *</Label>
                 <Textarea
                   id="prompt_text"
-                  value={promptText}
-                  onChange={(e) => setPromptText(e.target.value)}
+                  name="prompt_text"
+                  defaultValue={prompt.prompt_text}
                   disabled={isSubmitting}
                   rows={8}
                   required
@@ -407,8 +345,8 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
                 <Label htmlFor="input_modality">Input Type</Label>
                 <select
                   id="input_modality"
-                  value={inputModality}
-                  onChange={(e) => setInputModality(e.target.value as InputModality)}
+                  name="input_modality"
+                  defaultValue={prompt.input_modality}
                   disabled={isSubmitting}
                   className="flex h-10 w-full rounded-md border border-[var(--input)] bg-[var(--background)] px-3 py-2 text-sm"
                 >
@@ -440,7 +378,7 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
 
               {/* Submit */}
               <div className="flex gap-4">
-                <Button type="submit" className="flex-1" disabled={isSubmitting}>
+                <Button type="submit" className="flex-1" disabled={isSubmitting || isDeleting}>
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -450,11 +388,11 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
                     "Save Changes"
                   )}
                 </Button>
-                <Button type="button" variant="outline" asChild disabled={isSubmitting}>
+                <Button type="button" variant="outline" asChild disabled={isSubmitting || isDeleting}>
                   <Link to={`/prompts/${params.id}`}>Cancel</Link>
                 </Button>
               </div>
-            </form>
+            </Form>
           </CardContent>
         </Card>
       </Container>

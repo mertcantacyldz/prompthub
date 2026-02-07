@@ -48,7 +48,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           }}
         />
       </head>
-      <body className="min-h-screen bg-[var(--background)] font-sans antialiased">
+      <body className="min-h-screen bg-[var(--background)] font-sans antialiased" suppressHydrationWarning>
         {children}
         <ScrollRestoration />
         <Scripts />
@@ -57,10 +57,45 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function App() {
+import { data } from "react-router";
+import { getSupabaseServerClient } from "~/lib/supabase";
+import type { Profile } from "~/types/database";
+
+export async function loader({ request }: Route.LoaderArgs) {
+  const { supabase, headers } = getSupabaseServerClient(request);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let profile: Profile | null = null;
+
+  if (user) {
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single();
+    profile = profileData as Profile | null;
+  }
+
+  return data(
+    {
+      user: user ?? null,
+      profile,
+    },
+    { headers }
+  );
+}
+
+export default function App({ loaderData }: Route.ComponentProps) {
+  const { user, profile } = loaderData;
+
   return (
     <ThemeProvider>
-      <AuthProvider>
+      <AuthProvider
+        initialUser={user}
+        initialProfile={profile}
+      >
         <TooltipProvider>
           <div className="relative flex min-h-screen flex-col">
             <Header />

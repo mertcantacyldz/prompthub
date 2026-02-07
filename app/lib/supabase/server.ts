@@ -1,7 +1,8 @@
 import { createServerClient, parseCookieHeader, serializeCookieHeader } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "~/types/database";
 
-export function getSupabaseServerClient(request: Request) {
+export function getSupabaseServerClient(request: Request): { supabase: SupabaseClient<Database>; headers: Headers } {
   const headers = new Headers();
 
   const supabase = createServerClient<Database>(
@@ -10,7 +11,8 @@ export function getSupabaseServerClient(request: Request) {
     {
       cookies: {
         getAll() {
-          return parseCookieHeader(request.headers.get("Cookie") ?? "");
+          const cookies = parseCookieHeader(request.headers.get("Cookie") ?? "");
+          return cookies.filter((cookie): cookie is { name: string; value: string } => !!cookie.value);
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
@@ -37,6 +39,8 @@ export async function getUser(request: Request) {
 }
 
 // Helper to get session from request
+// WARNING: Using session.user data can be insecure as it's not verified by Supabase Auth server.
+// Use getUser(request) instead for security-sensitive operations.
 export async function getSession(request: Request) {
   const { supabase } = getSupabaseServerClient(request);
   const {

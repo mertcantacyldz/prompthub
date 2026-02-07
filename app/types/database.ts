@@ -205,7 +205,16 @@ export interface Database {
         ];
       };
     };
-    Functions: {};
+    Functions: {
+      increment_view_count: {
+        Args: { prompt_id: string };
+        Returns: void;
+      };
+      increment_copy_count: {
+        Args: { prompt_id: string };
+        Returns: void;
+      };
+    };
     Enums: {
       input_modality: InputModality;
     };

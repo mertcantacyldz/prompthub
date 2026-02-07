@@ -28,12 +28,16 @@ export function Header() {
   } : null;
 
   const handleLogout = async () => {
-    await signOut();
-    toast({
-      title: "Logged out",
-      description: "You have been successfully logged out.",
-    });
-    navigate("/");
+    try {
+      await signOut();
+      toast({
+        title: "Logged out",
+        description: "You have been successfully logged out.",
+      });
+      navigate("/");
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
   };
   return (
     <header className="sticky top-0 z-50 w-full border-b border-[var(--border)] bg-[var(--background)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--background)]/60">
@@ -79,18 +83,36 @@ export function Header() {
 
             {displayUser ? (
               <>
-                {/* Add Prompt Button */}
-                <Button asChild className="hidden sm:inline-flex">
-                  <Link to="/prompts/new">
-                    <Plus className="mr-2 h-4 w-4" />
-                    New Prompt
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="icon" className="sm:hidden" asChild>
-                  <Link to="/prompts/new">
-                    <Plus className="h-5 w-5" />
-                  </Link>
-                </Button>
+                {/* Action Buttons */}
+                <div className="flex items-center gap-1 sm:gap-2">
+                  {/* Saved Prompts - Desktop & Tablet */}
+                  <Button variant="ghost" asChild className="hidden sm:inline-flex">
+                    <Link to="/profile?tab=saved" className="flex items-center gap-2">
+                      <Bookmark className="h-4 w-4" />
+                      <span>Saved</span>
+                    </Link>
+                  </Button>
+
+                  {/* Saved Prompts - Mobile */}
+                  <Button variant="ghost" size="icon" className="sm:hidden" asChild>
+                    <Link to="/profile?tab=saved">
+                      <Bookmark className="h-5 w-5" />
+                    </Link>
+                  </Button>
+
+                  {/* Add Prompt Button */}
+                  <Button asChild className="hidden sm:inline-flex">
+                    <Link to="/prompts/new">
+                      <Plus className="mr-1 h-4 w-4" />
+                      <span>New Prompt</span>
+                    </Link>
+                  </Button>
+                  <Button variant="default" size="icon" className="sm:hidden" asChild>
+                    <Link to="/prompts/new">
+                      <Plus className="h-5 w-5" />
+                    </Link>
+                  </Button>
+                </div>
 
                 {/* User Menu */}
                 <DropdownMenu>
@@ -124,12 +146,6 @@ export function Header() {
                       <Link to="/profile">
                         <User className="mr-2 h-4 w-4" />
                         Profile
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link to="/profile?tab=saved">
-                        <Bookmark className="mr-2 h-4 w-4" />
-                        Saved Prompts
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>

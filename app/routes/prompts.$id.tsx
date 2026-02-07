@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useLoaderData } from "react-router";
 import type { Route } from "./+types/prompts.$id";
 import { Container } from "~/components/layout";
 import { Button } from "~/components/ui/button";
@@ -6,92 +6,108 @@ import { Badge } from "~/components/ui/badge";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Separator } from "~/components/ui/separator";
-import { Skeleton } from "~/components/ui/skeleton";
 import { StarRating } from "~/components/custom";
 import { Copy, Bookmark, Check, ArrowLeft, Edit, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { getPromptById, incrementViewCount, incrementCopyCount } from "~/lib/api";
-import { toggleSavePrompt, isPromptSaved } from "~/lib/api";
-import { ratePrompt, getUserRating } from "~/lib/api";
+import { incrementViewCount, incrementCopyCount } from "~/lib/api";
+import { toggleSavePrompt, ratePrompt } from "~/lib/api";
 import { useAuth } from "~/context";
 import { useToast } from "~/hooks/use-toast";
-import type { PromptWithDetails } from "~/types";
+import { getSupabaseServerClient } from "~/lib/supabase";
+import type { Prompt, PromptWithDetails } from "~/types";
 
-export function meta({ params }: Route.MetaArgs) {
+export function meta({ data }: Route.MetaArgs) {
+  const prompt = data?.prompt;
   return [
-    { title: "Prompt Detail - PromptHub" },
-    { name: "description", content: "View prompt details" },
+    { title: prompt ? `${prompt.title} - PromptHub` : "Prompt Detail - PromptHub" },
+    { name: "description", content: prompt?.description || "View prompt details on PromptHub" },
   ];
 }
 
+export async function loader({ request, params }: Route.LoaderArgs) {
+  const { supabase } = getSupabaseServerClient(request);
+  const { data: { user } } = await supabase.auth.getUser();
+  const userId = user?.id;
+
+  const { data: prompt, error } = await supabase
+    .from("prompts")
+    .select(`
+      *,
+      profiles (
+        id,
+        username,
+        display_name,
+        avatar_url
+      ),
+      prompt_ratings (
+        average_rating,
+        rating_count
+      )
+    `)
+    .match({ id: params.id! })
+    .single();
+
+  if (error || !prompt) {
+    if (error) {
+      console.error(`Loader error fetching prompt ID ${params.id}:`, error);
+    } else {
+      console.warn(`Prompt with ID ${params.id} not found.`);
+    }
+    throw new Response("Not Found", { status: 404 });
+  }
+
+  let isSaved = false;
+  let userRating = 0;
+
+  if (userId) {
+    const [savedRes, ratingRes] = await Promise.all([
+      supabase.from("saved_prompts").select("id").eq("user_id", userId).eq("prompt_id", params.id as string).single(),
+      supabase.from("ratings").select("score").eq("user_id", userId).eq("prompt_id", params.id as string).single(),
+    ]);
+
+    isSaved = !!savedRes.data;
+    userRating = (ratingRes.data as { score: number } | null)?.score || 0;
+  }
+
+  // Increment view count (fire and forget on server)
+  try {
+    const { error: rpcError } = await supabase.rpc('increment_view_count', { prompt_id: params.id! });
+    if (rpcError) console.error("Error incrementing view count:", rpcError);
+  } catch (err) {
+    console.error("RPC error:", err);
+  }
+
+  const promptRating = Array.isArray(prompt.prompt_ratings) ? prompt.prompt_ratings[0] : prompt.prompt_ratings;
+  const promptProfile = Array.isArray(prompt.profiles) ? prompt.profiles[0] : prompt.profiles;
+
+  return {
+    prompt: {
+      ...(prompt as unknown as Prompt),
+      profiles: promptProfile || { id: "", username: "unknown", display_name: null, avatar_url: null },
+      prompt_ratings: promptRating || null
+    } as PromptWithDetails,
+    initialIsSaved: isSaved,
+    initialUserRating: userRating
+  };
+}
+
 export default function PromptDetail({ params }: Route.ComponentProps) {
+  const { prompt, initialIsSaved, initialUserRating } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const [prompt, setPrompt] = useState<PromptWithDetails | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [userRating, setUserRating] = useState(0);
+  const [saved, setSaved] = useState(initialIsSaved);
+  const [userRating, setUserRating] = useState(initialUserRating);
   const [isRating, setIsRating] = useState(false);
 
-  // Fetch prompt data
   useEffect(() => {
-    const fetchPrompt = async () => {
-      setIsLoading(true);
-      try {
-        const data = await getPromptById(params.id);
-        if (!data) {
-          toast({
-            title: "Not found",
-            description: "This prompt doesn't exist.",
-            variant: "destructive",
-          });
-          navigate("/");
-          return;
-        }
-        setPrompt(data);
-
-        // Increment view count
-        incrementViewCount(params.id).catch(console.error);
-      } catch (error) {
-        console.error("Error fetching prompt:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load prompt.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchPrompt();
-  }, [params.id, navigate, toast]);
-
-  // Check saved status and user rating
-  useEffect(() => {
-    const checkUserData = async () => {
-      if (!user || !prompt) return;
-
-      try {
-        const [isSaved, rating] = await Promise.all([
-          isPromptSaved(user.id, prompt.id),
-          getUserRating(user.id, prompt.id),
-        ]);
-        setSaved(isSaved);
-        if (rating) setUserRating(rating.score);
-      } catch (error) {
-        console.error("Error checking user data:", error);
-      }
-    };
-
-    checkUserData();
-  }, [user, prompt]);
+    setSaved(initialIsSaved);
+    setUserRating(initialUserRating);
+  }, [initialIsSaved, initialUserRating]);
 
   const handleCopy = async () => {
-    if (!prompt) return;
     await navigator.clipboard.writeText(prompt.prompt_text);
     setCopied(true);
     incrementCopyCount(prompt.id).catch(console.error);
@@ -105,11 +121,9 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
         description: "Please log in to save prompts.",
         variant: "destructive",
       });
-      navigate("/auth/login");
+      navigate(`/auth/login?redirectTo=/prompts/${prompt.id}`);
       return;
     }
-
-    if (!prompt) return;
 
     try {
       const isSaved = await toggleSavePrompt(user.id, prompt.id);
@@ -136,11 +150,9 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
         description: "Please log in to rate prompts.",
         variant: "destructive",
       });
-      navigate("/auth/login");
+      navigate(`/auth/login?redirectTo=/prompts/${prompt.id}`);
       return;
     }
-
-    if (!prompt) return;
 
     setIsRating(true);
     try {
@@ -161,50 +173,7 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
     }
   };
 
-  const isOwner = user && prompt && user.id === prompt.user_id;
-
-  if (isLoading) {
-    return (
-      <div className="py-8">
-        <Container className="max-w-4xl">
-          <Skeleton className="h-6 w-32 mb-6" />
-          <Card>
-            <CardHeader className="space-y-4">
-              <Skeleton className="h-8 w-2/3" />
-              <div className="flex items-center gap-3">
-                <Skeleton className="h-10 w-10 rounded-full" />
-                <div>
-                  <Skeleton className="h-4 w-24 mb-1" />
-                  <Skeleton className="h-3 w-32" />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Skeleton className="h-6 w-20" />
-                <Skeleton className="h-6 w-16" />
-              </div>
-            </CardHeader>
-            <Separator />
-            <CardContent className="pt-6 space-y-6">
-              <div>
-                <Skeleton className="h-6 w-32 mb-2" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-3/4 mt-1" />
-              </div>
-              <div>
-                <Skeleton className="h-6 w-24 mb-2" />
-                <Skeleton className="h-40 w-full" />
-              </div>
-            </CardContent>
-          </Card>
-        </Container>
-      </div>
-    );
-  }
-
-  if (!prompt) {
-    return null;
-  }
-
+  const isOwner = user && user.id === prompt.user_id;
   const averageRating = prompt.prompt_ratings?.average_rating || 0;
   const ratingCount = prompt.prompt_ratings?.rating_count || 0;
 

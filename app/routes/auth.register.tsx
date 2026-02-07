@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, Form, useActionData, useNavigation, data, redirect } from "react-router";
 import { Container } from "~/components/layout";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -9,7 +9,8 @@ import { Separator } from "~/components/ui/separator";
 import { Github, Mail, Loader2 } from "lucide-react";
 import { useAuth } from "~/context";
 import { useToast } from "~/hooks/use-toast";
-import { supabase } from "~/lib/supabase";
+import { getSupabaseServerClient } from "~/lib/supabase";
+import type { Route } from "./+types/auth.register";
 
 export function meta() {
   return [
@@ -18,92 +19,83 @@ export function meta() {
   ];
 }
 
+export async function action({ request }: Route.ActionArgs) {
+  const formData = await request.formData();
+  const username = (formData.get("username") as string).toLowerCase();
+  const email = formData.get("email") as string;
+  const password = formData.get("password") as string;
+  const confirmPassword = formData.get("confirmPassword") as string;
+
+  // Validation
+  if (username.length < 3) {
+    return data({ error: "Username must be at least 3 characters" }, { status: 400 });
+  }
+  if (!/^[a-z0-9_]+$/.test(username)) {
+    return data({ error: "Username can only contain letters, numbers, and underscores" }, { status: 400 });
+  }
+  if (password.length < 6) {
+    return data({ error: "Password must be at least 6 characters" }, { status: 400 });
+  }
+  if (password !== confirmPassword) {
+    return data({ error: "Passwords do not match" }, { status: 400 });
+  }
+
+  const { supabase, headers } = getSupabaseServerClient(request);
+
+  // Check if username is already taken
+  const { data: existingUser } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("username", username)
+    .single();
+
+  if (existingUser) {
+    return data({ error: "This username is already in use. Please choose another." }, { status: 400 });
+  }
+
+  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        username: username,
+      }
+    }
+  });
+
+  if (signUpError) {
+    return data({ error: signUpError.message }, { status: 400, headers });
+  }
+
+  // Update profile with username (Supabase trigger usually handles this, but being explicit)
+  if (signUpData.user) {
+    await supabase
+      .from("profiles")
+      .update({ username: username })
+      .eq("id", signUpData.user.id);
+  }
+
+  return redirect("/auth/login?registered=true", { headers });
+}
+
 export default function Register() {
-  const navigate = useNavigate();
-  const { signUpWithEmail, signInWithGoogle, signInWithGithub } = useAuth();
+  const actionData = useActionData<typeof action>();
+  const navigation = useNavigation();
+  const { signInWithGoogle, signInWithGithub } = useAuth();
   const { toast } = useToast();
 
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const isRegistering = navigation.state === "submitting" && navigation.formData?.get("intent") === "register";
   const [oauthLoading, setOauthLoading] = useState<"google" | "github" | null>(null);
 
-  const validateForm = (): string | null => {
-    if (username.length < 3) {
-      return "Username must be at least 3 characters";
-    }
-    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      return "Username can only contain letters, numbers, and underscores";
-    }
-    if (password.length < 6) {
-      return "Password must be at least 6 characters";
-    }
-    if (password !== confirmPassword) {
-      return "Passwords do not match";
-    }
-    return null;
-  };
-
-  const handleEmailRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const validationError = validateForm();
-    if (validationError) {
-      toast({
-        title: "Validation error",
-        description: validationError,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsLoading(true);
-
-    // Check if username is already taken
-    const { data: existingUser } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("username", username.toLowerCase())
-      .single();
-
-    if (existingUser) {
-      toast({
-        title: "Username taken",
-        description: "This username is already in use. Please choose another.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
-    }
-
-    const { error } = await signUpWithEmail(email, password);
-
-    if (error) {
+  useEffect(() => {
+    if (actionData?.error) {
       toast({
         title: "Registration failed",
-        description: error.message,
+        description: actionData.error,
         variant: "destructive",
       });
-      setIsLoading(false);
-    } else {
-      // Update profile with username
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase
-          .from("profiles")
-          .update({ username: username.toLowerCase() })
-          .eq("id", user.id);
-      }
-
-      toast({
-        title: "Account created!",
-        description: "Please check your email to verify your account.",
-      });
-      navigate("/auth/login");
     }
-  };
+  }, [actionData, toast]);
 
   const handleGoogleLogin = async () => {
     setOauthLoading("google");
@@ -201,16 +193,16 @@ export default function Register() {
             </div>
 
             {/* Email Register Form */}
-            <form onSubmit={handleEmailRegister} className="space-y-4">
+            <Form method="post" className="space-y-4">
+              <input type="hidden" name="intent" value="register" />
               <div className="space-y-2">
                 <Label htmlFor="username">Username</Label>
                 <Input
                   id="username"
+                  name="username"
                   type="text"
                   placeholder="johndoe"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  disabled={isLoading}
+                  disabled={isRegistering}
                   required
                 />
               </div>
@@ -218,11 +210,10 @@ export default function Register() {
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
+                  name="email"
                   type="email"
                   placeholder="name@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={isLoading}
+                  disabled={isRegistering}
                   required
                 />
               </div>
@@ -230,10 +221,9 @@ export default function Register() {
                 <Label htmlFor="password">Password</Label>
                 <Input
                   id="password"
+                  name="password"
                   type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLoading}
+                  disabled={isRegistering}
                   required
                 />
               </div>
@@ -241,22 +231,21 @@ export default function Register() {
                 <Label htmlFor="confirmPassword">Confirm Password</Label>
                 <Input
                   id="confirmPassword"
+                  name="confirmPassword"
                   type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  disabled={isLoading}
+                  disabled={isRegistering}
                   required
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? (
+              <Button type="submit" className="w-full" disabled={isRegistering}>
+                {isRegistering ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <Mail className="mr-2 h-4 w-4" />
                 )}
                 Create Account
               </Button>
-            </form>
+            </Form>
 
             <p className="text-center text-xs text-[var(--muted-foreground)]">
               By creating an account, you agree to our{" "}

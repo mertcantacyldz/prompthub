@@ -2,8 +2,10 @@ import { PromptCard, type PromptCardProps } from "./prompt-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { cn } from "~/lib/utils";
 
+import type { PromptWithDetails } from "~/types";
+
 interface PromptListProps {
-  prompts: Omit<PromptCardProps, "onSave">[];
+  prompts: PromptWithDetails[];
   savedPromptIds?: string[];
   onSave?: (id: string) => void;
   isLoading?: boolean;
@@ -55,7 +57,18 @@ export function PromptList({
       {prompts.map((prompt) => (
         <PromptCard
           key={prompt.id}
-          {...prompt}
+          id={prompt.id}
+          title={prompt.title}
+          description={prompt.description}
+          prompt_text={prompt.prompt_text}
+          categories={prompt.categories}
+          ai_platforms={prompt.ai_platforms}
+          average_rating={prompt.prompt_ratings?.average_rating || 0}
+          rating_count={prompt.prompt_ratings?.rating_count || 0}
+          user={{
+            username: prompt.profiles?.username || "unknown",
+            avatar_url: prompt.profiles?.avatar_url || null,
+          }}
           is_saved={savedPromptIds.includes(prompt.id)}
           onSave={onSave}
         />

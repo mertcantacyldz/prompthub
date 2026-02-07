@@ -1,23 +1,23 @@
-import { useSearchParams, useNavigate } from "react-router";
+import { useSearchParams, useNavigate, useLoaderData } from "react-router";
 import type { Route } from "./+types/home";
 import { Container } from "~/components/layout";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "~/components/ui/sheet";
 import { Skeleton } from "~/components/ui/skeleton";
-import { PromptList } from "~/components/prompt";
+import { PromptList } from "~/components/prompt/prompt-list";
 import { SearchBar, FilterPanel } from "~/components/search";
 import { Pagination } from "~/components/custom";
-import { SlidersHorizontal, Sparkles } from "lucide-react";
+import { Search, Filter, X, ChevronLeft, ChevronRight, SlidersHorizontal, Sparkles } from "lucide-react";
 import { CATEGORIES } from "~/lib/utils/constants";
 import { useState, useEffect } from "react";
-import { getPrompts, type PromptFilters } from "~/lib/api";
-import { toggleSavePrompt, isPromptSaved } from "~/lib/api";
+import { getPrompts, type PromptFilters, toggleSavePrompt } from "~/lib/api";
 import { useAuth } from "~/context";
 import { useToast } from "~/hooks/use-toast";
-import type { PromptWithDetails } from "~/types";
+import { getSupabaseServerClient } from "~/lib/supabase";
+import type { PromptWithDetails, InputModality } from "~/types";
 
-export function meta({}: Route.MetaArgs) {
+export function meta({ }: Route.MetaArgs) {
   return [
     { title: "PromptHub - Discover & Share AI Prompts" },
     {
@@ -30,74 +30,64 @@ export function meta({}: Route.MetaArgs) {
 
 const PROMPTS_PER_PAGE = 12;
 
+export async function loader({ request }: Route.LoaderArgs) {
+  const url = new URL(request.url);
+  const searchParams = url.searchParams;
+
+  const { supabase } = getSupabaseServerClient(request);
+  const { data: { user } } = await supabase.auth.getUser();
+  const userId = user?.id;
+
+  const currentPage = parseInt(searchParams.get("page") || "1");
+  const filters: PromptFilters = {
+    page: currentPage,
+    limit: PROMPTS_PER_PAGE,
+    search: searchParams.get("q") || undefined,
+    categories: searchParams.getAll("category"),
+    platforms: searchParams.getAll("platform"),
+    modality: (searchParams.get("modality") as InputModality) || undefined,
+    sortBy: (searchParams.get("sort") as PromptFilters["sortBy"]) || "newest",
+  };
+
+  const { data: prompts, totalPages, count: totalCount } = await getPrompts(filters);
+
+  // Load saved status for these prompts if user is logged in
+  let savedPromptIds: string[] = [];
+  if (userId && prompts.length > 0) {
+    const { data: savedData } = await supabase
+      .from("saved_prompts")
+      .select("prompt_id")
+      .eq("user_id", userId)
+      .in("prompt_id", prompts.map(p => p.id));
+
+    if (savedData) {
+      savedPromptIds = (savedData as { prompt_id: string }[]).map(s => s.prompt_id);
+    }
+  }
+
+  return {
+    prompts,
+    totalPages,
+    totalCount,
+    savedPromptIds,
+    currentPage,
+  };
+}
+
 export default function Home() {
+  const { prompts: initialPrompts, totalPages, totalCount, savedPromptIds: initialSavedIds, currentPage } = useLoaderData<typeof loader>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const [prompts, setPrompts] = useState<PromptWithDetails[]>([]);
-  const [savedPrompts, setSavedPrompts] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
+  const [savedPrompts, setSavedPrompts] = useState<string[]>(initialSavedIds);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
-  const currentPage = parseInt(searchParams.get("page") || "1");
-
-  // Fetch prompts
+  // Update saved status when initial data changes (e.g. after navigation)
   useEffect(() => {
-    const fetchPrompts = async () => {
-      setIsLoading(true);
-      try {
-        const filters: PromptFilters = {
-          page: currentPage,
-          limit: PROMPTS_PER_PAGE,
-          search: searchParams.get("q") || undefined,
-          categories: searchParams.getAll("category"),
-          platforms: searchParams.getAll("platform"),
-          modality: searchParams.get("modality") || undefined,
-          sortBy: (searchParams.get("sort") as PromptFilters["sortBy"]) || "newest",
-        };
-
-        const result = await getPrompts(filters);
-        setPrompts(result.data);
-        setTotalPages(result.totalPages);
-        setTotalCount(result.count);
-      } catch (error) {
-        console.error("Error fetching prompts:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load prompts. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchPrompts();
-  }, [searchParams, currentPage, toast]);
-
-  // Load saved prompts for logged-in user
-  useEffect(() => {
-    const loadSavedStatus = async () => {
-      if (!user || prompts.length === 0) return;
-
-      const savedIds: string[] = [];
-      for (const prompt of prompts) {
-        try {
-          const isSaved = await isPromptSaved(user.id, prompt.id);
-          if (isSaved) savedIds.push(prompt.id);
-        } catch {
-          // Ignore errors
-        }
-      }
-      setSavedPrompts(savedIds);
-    };
-
-    loadSavedStatus();
-  }, [user, prompts]);
+    setSavedPrompts(initialSavedIds);
+  }, [initialSavedIds]);
 
   const handlePageChange = (page: number) => {
     const params = new URLSearchParams(searchParams);
@@ -228,59 +218,35 @@ export default function Home() {
           <div className="flex-1">
             {/* Results Header */}
             <div className="mb-6 flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-semibold">
+              <div className="flex flex-col gap-1">
+                <h2 className="text-xl font-bold tracking-tight">
                   {hasActiveFilters ? "Filtered Results" : "Trending Prompts"}
                 </h2>
                 <p className="text-sm text-[var(--muted-foreground)]">
-                  {isLoading ? "Loading..." : `Showing ${totalCount} prompts`}
+                  Showing {totalCount} prompts
                 </p>
               </div>
 
-              {/* Mobile Filter Button */}
-              <Sheet open={mobileFilterOpen} onOpenChange={setMobileFilterOpen}>
-                <SheetTrigger asChild>
-                  <Button variant="outline" size="sm" className="lg:hidden gap-2">
-                    <SlidersHorizontal className="h-4 w-4" />
-                    Filters
-                    {hasActiveFilters && (
-                      <span className="ml-1 rounded-full bg-accent-500 px-1.5 py-0.5 text-xs text-white">
-                        !
-                      </span>
-                    )}
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-80">
-                  <SheetHeader>
-                    <SheetTitle>Filters</SheetTitle>
-                  </SheetHeader>
-                  <div className="mt-6">
-                    <FilterPanel />
-                  </div>
-                </SheetContent>
-              </Sheet>
+              <div className="flex items-center gap-2">
+                <select
+                  className="h-9 rounded-md border border-[var(--border)] bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                  value={searchParams.get("sort") || "newest"}
+                  onChange={(e) => {
+                    const params = new URLSearchParams(searchParams);
+                    params.set("sort", e.target.value);
+                    params.set("page", "1");
+                    navigate(`/?${params.toString()}`);
+                  }}
+                >
+                  <option value="newest">Newest</option>
+                  <option value="trending">Trending</option>
+                  <option value="top">Top Rated</option>
+                </select>
+              </div>
             </div>
 
             {/* Prompt Grid */}
-            {isLoading ? (
-              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="rounded-lg border border-[var(--border)] p-4">
-                    <Skeleton className="h-6 w-3/4 mb-2" />
-                    <Skeleton className="h-4 w-full mb-1" />
-                    <Skeleton className="h-4 w-2/3 mb-4" />
-                    <div className="flex gap-2 mb-4">
-                      <Skeleton className="h-5 w-16" />
-                      <Skeleton className="h-5 w-20" />
-                    </div>
-                    <div className="flex justify-between">
-                      <Skeleton className="h-8 w-24" />
-                      <Skeleton className="h-8 w-8" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : prompts.length === 0 ? (
+            {initialPrompts.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-lg text-[var(--muted-foreground)]">
                   No prompts found. Try adjusting your filters.
@@ -288,7 +254,7 @@ export default function Home() {
               </div>
             ) : (
               <PromptList
-                prompts={prompts}
+                prompts={initialPrompts}
                 savedPromptIds={savedPrompts}
                 onSave={handleSave}
               />

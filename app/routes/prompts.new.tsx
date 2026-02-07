@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router";
+import { useNavigate, Form, useActionData, useNavigation, redirect, data } from "react-router";
 import { Container } from "~/components/layout";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -10,10 +10,11 @@ import { Badge } from "~/components/ui/badge";
 import { CATEGORIES, AI_PLATFORMS, INPUT_MODALITIES } from "~/lib/utils/constants";
 import { X, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { createPrompt } from "~/lib/api";
+import { getSupabaseServerClient } from "~/lib/supabase";
 import { useAuth } from "~/context";
 import { useToast } from "~/hooks/use-toast";
-import type { InputModality } from "~/types";
+import type { InputModality, Prompt, PromptInsert } from "~/types";
+import type { Route } from "./+types/prompts.new";
 
 export function meta() {
   return [
@@ -22,31 +23,91 @@ export function meta() {
   ];
 }
 
+export async function loader({ request }: Route.LoaderArgs) {
+  const { supabase } = getSupabaseServerClient(request);
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return redirect("/auth/login?redirectTo=/prompts/new");
+  }
+
+  return {};
+}
+
+export async function action({ request }: Route.ActionArgs) {
+  const { supabase, headers } = getSupabaseServerClient(request);
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return redirect("/auth/login", { headers });
+  }
+
+  const formData = await request.formData();
+  const title = formData.get("title") as string;
+  const description = formData.get("description") as string;
+  const prompt_text = formData.get("prompt_text") as string;
+  const categories = formData.getAll("categories") as string[];
+  const ai_platforms = formData.getAll("ai_platforms") as string[];
+  const input_modality = formData.get("input_modality") as InputModality;
+  const is_public = formData.get("is_public") === "true";
+
+  // Validation
+  if (title.trim().length < 3) {
+    return data({ error: "Title must be at least 3 characters long." }, { status: 400 });
+  }
+  if (prompt_text.trim().length < 10) {
+    return data({ error: "Prompt text must be at least 10 characters long." }, { status: 400 });
+  }
+  if (categories.length === 0) {
+    return data({ error: "Please select at least one category." }, { status: 400 });
+  }
+  if (ai_platforms.length === 0) {
+    return data({ error: "Please select at least one AI platform." }, { status: 400 });
+  }
+
+  const { data: newPrompt, error } = await supabase
+    .from("prompts")
+    .insert({
+      user_id: user.id,
+      title: title.trim(),
+      description: description.trim() || null,
+      prompt_text: prompt_text.trim(),
+      categories,
+      ai_platforms,
+      input_modality,
+      is_public,
+    } as PromptInsert)
+    .select()
+    .single();
+
+  if (error) {
+    return data({ error: "Failed to create prompt. Please try again." }, { status: 500, headers });
+  }
+
+  return redirect(`/prompts/${newPrompt?.id}`, { headers });
+}
+
 export default function NewPrompt() {
   const navigate = useNavigate();
-  const { user, isLoading: authLoading } = useAuth();
+  const actionData = useActionData<typeof action>();
+  const navigation = useNavigation();
   const { toast } = useToast();
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [promptText, setPromptText] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
-  const [inputModality, setInputModality] = useState<InputModality>("text");
   const [isPublic, setIsPublic] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Redirect if not logged in
+  const isSubmitting = navigation.state === "submitting" && navigation.formData?.get("intent") === "create_prompt";
+
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (actionData?.error) {
       toast({
-        title: "Login required",
-        description: "Please log in to create prompts.",
+        title: "Error",
+        description: actionData.error,
         variant: "destructive",
       });
-      navigate("/auth/login");
     }
-  }, [user, authLoading, navigate, toast]);
+  }, [actionData, toast]);
 
   const toggleCategory = (category: string) => {
     setSelectedCategories((prev) =>
@@ -64,99 +125,9 @@ export default function NewPrompt() {
     );
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!user) {
-      toast({
-        title: "Login required",
-        description: "Please log in to create prompts.",
-        variant: "destructive",
-      });
-      navigate("/auth/login");
-      return;
-    }
-
-    // Validation
-    if (!title.trim()) {
-      toast({
-        title: "Validation error",
-        description: "Please enter a title.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!promptText.trim()) {
-      toast({
-        title: "Validation error",
-        description: "Please enter the prompt text.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (selectedCategories.length === 0) {
-      toast({
-        title: "Validation error",
-        description: "Please select at least one category.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (selectedPlatforms.length === 0) {
-      toast({
-        title: "Validation error",
-        description: "Please select at least one AI platform.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const newPrompt = await createPrompt({
-        user_id: user.id,
-        title: title.trim(),
-        description: description.trim() || null,
-        prompt_text: promptText.trim(),
-        categories: selectedCategories,
-        ai_platforms: selectedPlatforms,
-        input_modality: inputModality,
-        is_public: isPublic,
-      });
-
-      toast({
-        title: "Prompt created!",
-        description: "Your prompt has been successfully created.",
-      });
-
-      navigate(`/prompts/${newPrompt.id}`);
-    } catch (error) {
-      console.error("Error creating prompt:", error);
-      toast({
-        title: "Error",
-        description: "Failed to create prompt. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const handleCancel = () => {
     navigate(-1);
   };
-
-  if (authLoading) {
-    return (
-      <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-accent-500" />
-      </div>
-    );
-  }
 
   return (
     <div className="py-8">
@@ -166,15 +137,23 @@ export default function NewPrompt() {
             <CardTitle className="text-2xl">Create New Prompt</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <Form method="post" className="space-y-6">
+              <input type="hidden" name="intent" value="create_prompt" />
+              <input type="hidden" name="is_public" value={String(isPublic)} />
+              {selectedCategories.map(c => (
+                <input key={c} type="hidden" name="categories" value={c} />
+              ))}
+              {selectedPlatforms.map(p => (
+                <input key={p} type="hidden" name="ai_platforms" value={p} />
+              ))}
+
               {/* Title */}
               <div className="space-y-2">
                 <Label htmlFor="title">Title *</Label>
                 <Input
                   id="title"
+                  name="title"
                   placeholder="Enter a descriptive title for your prompt"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
                   disabled={isSubmitting}
                   required
                 />
@@ -185,9 +164,8 @@ export default function NewPrompt() {
                 <Label htmlFor="description">Description</Label>
                 <Textarea
                   id="description"
+                  name="description"
                   placeholder="Briefly describe what this prompt does and when to use it"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
                   disabled={isSubmitting}
                   rows={3}
                 />
@@ -198,9 +176,8 @@ export default function NewPrompt() {
                 <Label htmlFor="prompt_text">Prompt Text *</Label>
                 <Textarea
                   id="prompt_text"
+                  name="prompt_text"
                   placeholder="Enter your prompt here..."
-                  value={promptText}
-                  onChange={(e) => setPromptText(e.target.value)}
                   disabled={isSubmitting}
                   rows={8}
                   required
@@ -261,8 +238,7 @@ export default function NewPrompt() {
                 <Label htmlFor="input_modality">Input Type</Label>
                 <select
                   id="input_modality"
-                  value={inputModality}
-                  onChange={(e) => setInputModality(e.target.value as InputModality)}
+                  name="input_modality"
                   disabled={isSubmitting}
                   className="flex h-10 w-full rounded-md border border-[var(--input)] bg-[var(--background)] px-3 py-2 text-sm"
                 >
@@ -308,7 +284,7 @@ export default function NewPrompt() {
                   Cancel
                 </Button>
               </div>
-            </form>
+            </Form>
           </CardContent>
         </Card>
       </Container>

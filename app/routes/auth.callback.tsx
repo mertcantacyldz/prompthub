@@ -1,8 +1,8 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router";
+import { redirect } from "react-router";
 import { Container } from "~/components/layout";
-import { supabase } from "~/lib/supabase";
+import { getSupabaseServerClient } from "~/lib/supabase";
 import { Loader2 } from "lucide-react";
+import type { Route } from "./+types/auth.callback";
 
 export function meta() {
   return [
@@ -10,53 +10,25 @@ export function meta() {
   ];
 }
 
+export async function loader({ request }: Route.LoaderArgs) {
+  const requestUrl = new URL(request.url);
+  const code = requestUrl.searchParams.get("code");
+  const next = requestUrl.searchParams.get("next") || "/";
+
+  if (code) {
+    const { supabase, headers } = getSupabaseServerClient(request);
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+    if (!error) {
+      return redirect(next, { headers });
+    }
+  }
+
+  // return the user to an error page with instructions
+  return redirect("/auth/login?error=auth_callback_failed");
+}
+
 export default function AuthCallback() {
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const handleCallback = async () => {
-      try {
-        // Supabase handles the OAuth code exchange automatically via onAuthStateChange
-        // We just need to wait for the session to be established
-        const { data, error } = await supabase.auth.getSession();
-
-        if (error) {
-          console.error("Auth callback error:", error);
-          navigate("/auth/login?error=auth_failed");
-          return;
-        }
-
-        if (data.session) {
-          // Successfully authenticated
-          navigate("/");
-        } else {
-          // Check if there's a hash fragment (Supabase returns tokens in hash)
-          const hashParams = new URLSearchParams(window.location.hash.substring(1));
-          const accessToken = hashParams.get("access_token");
-
-          if (accessToken) {
-            // Wait a moment for Supabase to process the tokens
-            setTimeout(async () => {
-              const { data: retryData } = await supabase.auth.getSession();
-              if (retryData.session) {
-                navigate("/");
-              } else {
-                navigate("/auth/login");
-              }
-            }, 1000);
-          } else {
-            navigate("/auth/login");
-          }
-        }
-      } catch (err) {
-        console.error("Unexpected auth error:", err);
-        navigate("/auth/login?error=auth_failed");
-      }
-    };
-
-    handleCallback();
-  }, [navigate]);
-
   return (
     <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center">
       <Container className="max-w-md text-center">

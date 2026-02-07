@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router";
+import { useNavigate, Form, useActionData, useNavigation, useLoaderData, redirect, data } from "react-router";
 import { Container } from "~/components/layout";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -22,7 +22,22 @@ import { useToast } from "~/hooks/use-toast";
 import { Moon, Sun, Monitor, Check, Upload, Trash2, Loader2 } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { useState, useEffect, useRef } from "react";
-import { updateProfile, uploadAvatar, deleteAvatar, isUsernameAvailable } from "~/lib/api";
+import { getSupabaseServerClient } from "~/lib/supabase";
+import { uploadAvatar, deleteAvatar } from "~/lib/api";
+import type { Route } from "./+types/settings";
+import type { Profile } from "~/types";
+
+const THEMES = [
+  { value: "light" as const, label: "Light", icon: Sun },
+  { value: "dark" as const, label: "Dark", icon: Moon },
+  { value: "system" as const, label: "System", icon: Monitor },
+];
+
+type ActionData = {
+  success?: boolean;
+  message?: string;
+  error?: string;
+};
 
 export function meta() {
   return [
@@ -31,50 +46,129 @@ export function meta() {
   ];
 }
 
+export async function loader({ request }: Route.LoaderArgs) {
+  const { supabase } = getSupabaseServerClient(request);
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return redirect("/auth/login?redirectTo=/settings");
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .single();
+
+  return { profile: (profile as unknown) as Profile };
+}
+
+export async function action({ request }: Route.ActionArgs) {
+  const { supabase, headers } = getSupabaseServerClient(request);
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return redirect("/auth/login", { headers });
+  }
+
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+
+  if (intent === "update_profile") {
+    const username = (formData.get("username") as string).toLowerCase().trim();
+    const display_name = (formData.get("display_name") as string).trim() || null;
+    const bio = (formData.get("bio") as string).trim() || null;
+
+    // Validation
+    if (username.length < 3) {
+      return data({ error: "Username must be at least 3 characters." }, { status: 400 });
+    }
+    if (username.length > 30) {
+      return data({ error: "Username must be less than 30 characters." }, { status: 400 });
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      return data({ error: "Username can only contain letters, numbers, and underscores." }, { status: 400 });
+    }
+
+    // Check availability if username matches another user
+    const { data: existingUser } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("username", username)
+      .neq("id", user.id)
+      .single();
+
+    if (existingUser) {
+      return data({ error: "Username is already taken." }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        username,
+        display_name,
+        bio,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.id);
+
+    if (error) {
+      console.error("Error updating profile:", error);
+      return data({ error: "Failed to update profile. Please try again." }, { status: 500, headers });
+    }
+
+    return data({ success: true, message: "Profile updated successfully." }, { headers });
+  }
+
+  return null;
+}
+
 export default function Settings() {
-  const navigate = useNavigate();
+  const { profile: initialProfile } = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>() as ActionData;
+  const navigation = useNavigation();
   const { theme, setTheme } = useTheme();
-  const { user, profile, isLoading: authLoading, refreshProfile } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [username, setUsername] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [bio, setBio] = useState("");
-  const [isUpdating, setIsUpdating] = useState(false);
+  const [username, setUsername] = useState(initialProfile?.username || "");
+  const [displayName, setDisplayName] = useState(initialProfile?.display_name || "");
+  const [bio, setBio] = useState(initialProfile?.bio || "");
+  const [usernameError, setUsernameError] = useState("");
+
+  const isUpdating = navigation.state === "submitting" && navigation.formData?.get("intent") === "update_profile";
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isDeletingAvatar, setIsDeletingAvatar] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [usernameError, setUsernameError] = useState("");
 
-  // Redirect if not logged in
+  // Handle action data for toasts and profile refresh
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (actionData?.success) {
       toast({
-        title: "Login required",
-        description: "Please log in to access settings.",
+        title: "Profile updated",
+        description: actionData.message,
+      });
+      refreshProfile();
+    } else if (actionData?.error) {
+      toast({
+        title: "Error",
+        description: actionData.error,
         variant: "destructive",
       });
-      navigate("/auth/login");
+      if (actionData.error.includes("Username")) {
+        setUsernameError(actionData.error);
+      }
     }
-  }, [user, authLoading, navigate, toast]);
+  }, [actionData, toast, refreshProfile]);
 
-  // Load profile data
+  // Reset username error when username changes
   useEffect(() => {
-    if (profile) {
-      setUsername(profile.username);
-      setDisplayName(profile.display_name || "");
-      setBio(profile.bio || "");
-    }
-  }, [profile]);
+    setUsernameError("");
+  }, [username]);
 
-  const themes = [
-    { value: "light" as const, label: "Light", icon: Sun },
-    { value: "dark" as const, label: "Dark", icon: Moon },
-    { value: "system" as const, label: "System", icon: Monitor },
-  ];
-
-  const validateUsername = (value: string) => {
+  // Client-side validation for username (for immediate feedback)
+  const validateUsernameClient = (value: string) => {
     if (!value.trim()) {
       return "Username is required";
     }
@@ -90,62 +184,10 @@ export default function Settings() {
     return "";
   };
 
-  const handleUsernameChange = async (value: string) => {
+  const handleUsernameChange = (value: string) => {
     setUsername(value);
-    const error = validateUsername(value);
+    const error = validateUsernameClient(value);
     setUsernameError(error);
-
-    if (!error && value !== profile?.username && user) {
-      const available = await isUsernameAvailable(value, user.id);
-      if (!available) {
-        setUsernameError("Username is already taken");
-      }
-    }
-  };
-
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !profile) return;
-
-    const error = validateUsername(username);
-    if (error) {
-      setUsernameError(error);
-      return;
-    }
-
-    // Check username availability if changed
-    if (username !== profile.username) {
-      const available = await isUsernameAvailable(username, user.id);
-      if (!available) {
-        setUsernameError("Username is already taken");
-        return;
-      }
-    }
-
-    setIsUpdating(true);
-    try {
-      await updateProfile(user.id, {
-        username: username.toLowerCase(),
-        display_name: displayName.trim() || null,
-        bio: bio.trim() || null,
-      });
-
-      await refreshProfile();
-
-      toast({
-        title: "Profile updated",
-        description: "Your profile has been updated successfully.",
-      });
-    } catch (error) {
-      console.error("Error updating profile:", error);
-      toast({
-        title: "Error",
-        description: "Failed to update profile. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUpdating(false);
-    }
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -219,29 +261,9 @@ export default function Settings() {
     }
   };
 
-  if (authLoading) {
-    return (
-      <div className="py-8">
-        <Container className="max-w-2xl">
-          <Skeleton className="h-10 w-32 mb-8" />
-          <Card className="mb-6">
-            <CardHeader>
-              <Skeleton className="h-6 w-24" />
-              <Skeleton className="h-4 w-48" />
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Skeleton className="h-24 w-24 rounded-full mx-auto" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-24 w-full" />
-            </CardContent>
-          </Card>
-        </Container>
-      </div>
-    );
-  }
-
-  if (!user || !profile) {
+  // The loader handles redirection if no user, so we don't need authLoading check here.
+  // We also don't need to check for !user || !profile here because loader ensures it.
+  if (!initialProfile) {
     return null;
   }
 
@@ -259,13 +281,14 @@ export default function Settings() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleUpdateProfile} className="space-y-6">
+            <Form method="post" className="space-y-6">
+              <input type="hidden" name="intent" value="update_profile" />
               {/* Avatar */}
               <div className="flex flex-col items-center gap-4">
                 <Avatar className="h-24 w-24">
-                  <AvatarImage src={profile.avatar_url || undefined} />
+                  <AvatarImage src={initialProfile.avatar_url || undefined} />
                   <AvatarFallback className="text-2xl">
-                    {profile.username.charAt(0).toUpperCase()}
+                    {initialProfile.username.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex gap-2">
@@ -295,7 +318,7 @@ export default function Settings() {
                       </>
                     )}
                   </Button>
-                  {profile.avatar_url && (
+                  {initialProfile.avatar_url && (
                     <Button
                       type="button"
                       variant="outline"
@@ -323,12 +346,14 @@ export default function Settings() {
                 <Label htmlFor="username">Username</Label>
                 <Input
                   id="username"
+                  name="username"
                   value={username}
-                  onChange={(e) => handleUsernameChange(e.target.value)}
+                  onChange={(e) => setUsername(e.target.value)}
                   disabled={isUpdating}
+                  required
                 />
-                {usernameError && (
-                  <p className="text-sm text-red-500">{usernameError}</p>
+                {actionData?.error?.includes("Username") && (
+                  <p className="text-sm text-red-500">{actionData.error}</p>
                 )}
               </div>
 
@@ -337,6 +362,7 @@ export default function Settings() {
                 <Label htmlFor="display_name">Display Name</Label>
                 <Input
                   id="display_name"
+                  name="display_name"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="Your display name"
@@ -349,6 +375,7 @@ export default function Settings() {
                 <Label htmlFor="bio">Bio</Label>
                 <Textarea
                   id="bio"
+                  name="bio"
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
                   placeholder="Tell us about yourself..."
@@ -357,7 +384,7 @@ export default function Settings() {
                 />
               </div>
 
-              <Button type="submit" disabled={isUpdating || !!usernameError}>
+              <Button type="submit" disabled={isUpdating}>
                 {isUpdating ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -367,7 +394,7 @@ export default function Settings() {
                   "Save Changes"
                 )}
               </Button>
-            </form>
+            </Form>
           </CardContent>
         </Card>
 
@@ -383,7 +410,7 @@ export default function Settings() {
             <div className="space-y-4">
               <Label>Theme</Label>
               <div className="grid grid-cols-3 gap-4">
-                {themes.map(({ value, label, icon: Icon }) => (
+                {THEMES.map(({ value, label, icon: Icon }) => (
                   <button
                     key={value}
                     onClick={() => setTheme(value)}
@@ -417,7 +444,7 @@ export default function Settings() {
               <div>
                 <p className="font-medium">Email</p>
                 <p className="text-sm text-[var(--muted-foreground)]">
-                  {user.email}
+                  {initialProfile.email}
                 </p>
               </div>
             </div>

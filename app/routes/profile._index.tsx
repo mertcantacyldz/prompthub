@@ -1,4 +1,4 @@
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams, useLoaderData, redirect } from "react-router";
 import { Container } from "~/components/layout";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "~/components/ui/card";
@@ -9,10 +9,11 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { StarRating } from "~/components/custom";
 import { Edit, Bookmark, Grid, Settings, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { getUserPrompts, getSavedPrompts, getUserStats } from "~/lib/api";
+import { getSupabaseServerClient } from "~/lib/supabase";
 import { useAuth } from "~/context";
 import { useToast } from "~/hooks/use-toast";
-import type { PromptWithDetails } from "~/types";
+import type { Profile, Prompt, PromptWithDetails } from "~/types/database";
+import type { Route } from "./+types/profile._index";
 
 export function meta() {
   return [
@@ -21,74 +22,100 @@ export function meta() {
   ];
 }
 
-export default function Profile() {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { user, profile, isLoading: authLoading } = useAuth();
-  const { toast } = useToast();
+export async function loader({ request }: Route.LoaderArgs) {
+  const { supabase } = getSupabaseServerClient(request);
+  const { data: { user } } = await supabase.auth.getUser();
 
-  const [userPrompts, setUserPrompts] = useState<PromptWithDetails[]>([]);
-  const [savedPrompts, setSavedPrompts] = useState<PromptWithDetails[]>([]);
-  const [stats, setStats] = useState({ promptCount: 0, totalViews: 0, totalCopies: 0, savedCount: 0 });
-  const [isLoading, setIsLoading] = useState(true);
+  if (!user) {
+    return redirect("/auth/login?redirectTo=/profile");
+  }
+
+  const userId = user.id;
+
+  // Fetch all data in parallel
+  const [
+    profileRes,
+    promptsRes,
+    savedRes,
+    statsPromptsRes,
+    statsSavedRes
+  ] = await Promise.all([
+    supabase.from("profiles").select("*").eq("id", userId).single(),
+    supabase.from("prompts").select(`
+      *,
+      profiles (username, avatar_url),
+      prompt_ratings (average_rating, rating_count)
+    `).eq("user_id", userId).order("created_at", { ascending: false }),
+    supabase.from("saved_prompts").select(`
+      prompt_id,
+      prompts (
+        *,
+        profiles (username, avatar_url),
+        prompt_ratings (average_rating, rating_count)
+      )
+    `).eq("user_id", userId).order("created_at", { ascending: false }),
+    supabase.from("prompts").select("view_count, copy_count").eq("user_id", userId),
+    supabase.from("saved_prompts").select("*", { count: "exact", head: true }).eq("user_id", userId),
+  ]);
+
+  if (profileRes.error) {
+    console.error("Error fetching profile:", profileRes.error);
+  }
+  const profile = profileRes.data;
+
+  interface RawPromptResponse extends Prompt {
+    profiles: { username: string; avatar_url: string | null } | { username: string; avatar_url: string | null }[];
+    prompt_ratings: { average_rating: number; rating_count: number; prompt_id: string } | { average_rating: number; rating_count: number; prompt_id: string }[];
+  }
+
+  // Transform prompts to match the UI expectations (flat ratings)
+  const transformPrompt = (p: unknown): PromptWithDetails => {
+    const raw = p as RawPromptResponse;
+    const rating = Array.isArray(raw.prompt_ratings) ? raw.prompt_ratings[0] : raw.prompt_ratings;
+    const profile = Array.isArray(raw.profiles) ? raw.profiles[0] : raw.profiles;
+    return {
+      ...(raw as Prompt),
+      profiles: profile || { username: "unknown", avatar_url: null },
+      prompt_ratings: rating || null
+    };
+  };
+
+  const userPrompts = (promptsRes.data || []).map(transformPrompt);
+
+  const savedPrompts = (savedRes.data || [])
+    .map((item) => item.prompts)
+    .filter((p): p is NonNullable<typeof p> => p !== null)
+    .map(transformPrompt);
+
+  const stats = {
+    promptCount: userPrompts.length,
+    totalViews: (statsPromptsRes.data || []).reduce((sum, p) => sum + (p.view_count || 0), 0),
+    totalCopies: (statsPromptsRes.data || []).reduce((sum, p) => sum + (p.copy_count || 0), 0),
+    savedCount: statsSavedRes.count || 0
+  };
+
+  return {
+    profile,
+    userPrompts,
+    savedPrompts,
+    stats
+  };
+}
+
+export default function Profile() {
+  const { profile, userPrompts, savedPrompts, stats } = useLoaderData<typeof loader>();
+  const [searchParams] = useSearchParams();
+  const { user } = useAuth();
+  const { toast } = useToast();
 
   const defaultTab = searchParams.get("tab") || "prompts";
 
-  // Redirect if not logged in
-  useEffect(() => {
-    if (!authLoading && !user) {
-      toast({
-        title: "Login required",
-        description: "Please log in to view your profile.",
-        variant: "destructive",
-      });
-      navigate("/auth/login");
-    }
-  }, [user, authLoading, navigate, toast]);
-
-  // Fetch user data
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!user) return;
-
-      setIsLoading(true);
-      try {
-        const [prompts, saved, userStats] = await Promise.all([
-          getUserPrompts(user.id, true), // Include private prompts
-          getSavedPrompts(user.id),
-          getUserStats(user.id),
-        ]);
-
-        setUserPrompts(prompts);
-        setSavedPrompts(saved);
-        setStats(userStats);
-      } catch (error) {
-        console.error("Error fetching profile data:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load profile data.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (user) {
-      fetchData();
-    }
-  }, [user, toast]);
-
-  if (authLoading) {
+  if (!profile) {
     return (
       <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-accent-500" />
+        <p>Profile not found.</p>
       </div>
     );
-  }
-
-  if (!user || !profile) {
-    return null;
   }
   return (
     <div className="py-8">
@@ -141,31 +168,19 @@ export default function Profile() {
         <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Card>
             <CardContent className="p-4 text-center">
-              {isLoading ? (
-                <Skeleton className="h-8 w-12 mx-auto mb-1" />
-              ) : (
-                <p className="text-2xl font-bold">{stats.promptCount}</p>
-              )}
+              <p className="text-2xl font-bold">{stats.promptCount}</p>
               <p className="text-sm text-[var(--muted-foreground)]">Prompts</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
-              {isLoading ? (
-                <Skeleton className="h-8 w-12 mx-auto mb-1" />
-              ) : (
-                <p className="text-2xl font-bold">{stats.savedCount}</p>
-              )}
+              <p className="text-2xl font-bold">{stats.savedCount}</p>
               <p className="text-sm text-[var(--muted-foreground)]">Saved</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
-              {isLoading ? (
-                <Skeleton className="h-8 w-12 mx-auto mb-1" />
-              ) : (
-                <p className="text-2xl font-bold">{stats.totalViews}</p>
-              )}
+              <p className="text-2xl font-bold">{stats.totalViews}</p>
               <p className="text-sm text-[var(--muted-foreground)]">
                 Total Views
               </p>
@@ -173,11 +188,7 @@ export default function Profile() {
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
-              {isLoading ? (
-                <Skeleton className="h-8 w-12 mx-auto mb-1" />
-              ) : (
-                <p className="text-2xl font-bold">{stats.totalCopies}</p>
-              )}
+              <p className="text-2xl font-bold">{stats.totalCopies}</p>
               <p className="text-sm text-[var(--muted-foreground)]">Total Copies</p>
             </CardContent>
           </Card>
@@ -197,24 +208,7 @@ export default function Profile() {
           </TabsList>
 
           <TabsContent value="prompts" className="mt-6">
-            {isLoading ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <Card key={i}>
-                    <CardHeader className="pb-2">
-                      <Skeleton className="h-5 w-3/4" />
-                    </CardHeader>
-                    <CardContent className="pb-2">
-                      <Skeleton className="h-4 w-full mb-1" />
-                      <Skeleton className="h-4 w-2/3" />
-                    </CardContent>
-                    <CardFooter>
-                      <Skeleton className="h-4 w-24" />
-                    </CardFooter>
-                  </Card>
-                ))}
-              </div>
-            ) : userPrompts.length > 0 ? (
+            {userPrompts.length > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {userPrompts.map((prompt) => (
                   <Link key={prompt.id} to={`/prompts/${prompt.id}`}>
@@ -276,24 +270,7 @@ export default function Profile() {
           </TabsContent>
 
           <TabsContent value="saved" className="mt-6">
-            {isLoading ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <Card key={i}>
-                    <CardHeader className="pb-2">
-                      <Skeleton className="h-5 w-3/4" />
-                    </CardHeader>
-                    <CardContent className="pb-2">
-                      <Skeleton className="h-4 w-full mb-1" />
-                      <Skeleton className="h-4 w-2/3" />
-                    </CardContent>
-                    <CardFooter>
-                      <Skeleton className="h-4 w-24" />
-                    </CardFooter>
-                  </Card>
-                ))}
-              </div>
-            ) : savedPrompts.length > 0 ? (
+            {savedPrompts.length > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {savedPrompts.map((prompt) => (
                   <Link key={prompt.id} to={`/prompts/${prompt.id}`}>

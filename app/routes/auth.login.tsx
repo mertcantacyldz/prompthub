@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, Form, useActionData, useNavigation, data, redirect } from "react-router";
 import { Container } from "~/components/layout";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -9,6 +9,8 @@ import { Separator } from "~/components/ui/separator";
 import { Github, Mail, Loader2 } from "lucide-react";
 import { useAuth } from "~/context";
 import { useToast } from "~/hooks/use-toast";
+import { getSupabaseServerClient } from "~/lib/supabase";
+import type { Route } from "./+types/auth.login";
 
 export function meta() {
   return [
@@ -17,37 +19,45 @@ export function meta() {
   ];
 }
 
+export async function action({ request }: Route.ActionArgs) {
+  const formData = await request.formData();
+  const email = formData.get("email") as string;
+  const password = formData.get("password") as string;
+  const redirectTo = (formData.get("redirectTo") as string) || "/";
+
+  const { supabase, headers } = getSupabaseServerClient(request);
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    return data({ error: error.message }, { status: 400, headers });
+  }
+
+  return redirect(redirectTo, { headers });
+}
+
 export default function Login() {
   const navigate = useNavigate();
-  const { signInWithEmail, signInWithGoogle, signInWithGithub } = useAuth();
+  const actionData = useActionData<typeof action>();
+  const navigation = useNavigation();
+  const { signInWithGoogle, signInWithGithub } = useAuth();
   const { toast } = useToast();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const isLoggingIn = navigation.state === "submitting" && navigation.formData?.get("intent") === "login";
   const [oauthLoading, setOauthLoading] = useState<"google" | "github" | null>(null);
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    const { error } = await signInWithEmail(email, password);
-
-    if (error) {
+  useEffect(() => {
+    if (actionData?.error) {
       toast({
         title: "Login failed",
-        description: error.message,
+        description: actionData.error,
         variant: "destructive",
       });
-      setIsLoading(false);
-    } else {
-      toast({
-        title: "Welcome back!",
-        description: "You have successfully logged in.",
-      });
-      navigate("/");
     }
-  };
+  }, [actionData, toast]);
 
   const handleGoogleLogin = async () => {
     setOauthLoading("google");
@@ -60,7 +70,6 @@ export default function Login() {
       });
       setOauthLoading(null);
     }
-    // OAuth will redirect, no need to handle success here
   };
 
   const handleGithubLogin = async () => {
@@ -74,7 +83,6 @@ export default function Login() {
       });
       setOauthLoading(null);
     }
-    // OAuth will redirect, no need to handle success here
   };
 
   return (
@@ -147,16 +155,16 @@ export default function Login() {
             </div>
 
             {/* Email Login Form */}
-            <form onSubmit={handleEmailLogin} className="space-y-4">
+            <Form method="post" className="space-y-4">
+              <input type="hidden" name="intent" value="login" />
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
+                  name="email"
                   type="email"
                   placeholder="name@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={isLoading}
+                  disabled={isLoggingIn}
                   required
                 />
               </div>
@@ -172,22 +180,21 @@ export default function Login() {
                 </div>
                 <Input
                   id="password"
+                  name="password"
                   type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLoading}
+                  disabled={isLoggingIn}
                   required
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? (
+              <Button type="submit" className="w-full" disabled={isLoggingIn}>
+                {isLoggingIn ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <Mail className="mr-2 h-4 w-4" />
                 )}
                 Login with Email
               </Button>
-            </form>
+            </Form>
           </CardContent>
           <CardFooter className="flex justify-center">
             <p className="text-sm text-[var(--muted-foreground)]">
