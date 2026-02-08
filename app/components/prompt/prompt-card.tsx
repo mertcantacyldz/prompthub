@@ -138,21 +138,21 @@ export function PromptCard({
         </CardContent>
 
         <CardFooter className="pt-0">
-          <div className="flex w-full items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="flex w-full flex-col gap-3 overflow-hidden">
+            <div className="flex items-center gap-1.5">
               <StarRating value={average_rating} readonly size="sm" />
               <span className="text-xs text-[var(--muted-foreground)]">
                 ({rating_count})
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <Avatar className="h-6 w-6">
+            <div className="flex min-w-0 items-center gap-2">
+              <Avatar className="h-6 w-6 shrink-0">
                 <AvatarImage src={user.avatar_url || undefined} />
                 <AvatarFallback className="text-xs">
                   {user.username.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-xs text-[var(--muted-foreground)]">
+              <span className="truncate text-xs text-[var(--muted-foreground)] font-medium">
                 @{user.username}
               </span>
             </div>

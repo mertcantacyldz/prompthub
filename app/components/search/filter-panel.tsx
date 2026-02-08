@@ -89,8 +89,8 @@ export function FilterPanel({ className }: FilterPanelProps) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="newest">Newest</SelectItem>
-            <SelectItem value="popular">Most Popular</SelectItem>
-            <SelectItem value="rating">Highest Rated</SelectItem>
+            <SelectItem value="most_viewed">Most Popular</SelectItem>
+            <SelectItem value="highest_rated">Highest Rated</SelectItem>
           </SelectContent>
         </Select>
       </div>

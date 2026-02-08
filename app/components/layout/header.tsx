@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useLocation } from "react-router";
 import { Plus, Search, User, LogOut, Settings, Bookmark } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -18,6 +18,8 @@ import { useToast } from "~/hooks/use-toast";
 export function Header() {
   const navigate = useNavigate();
   const { user, profile, signOut, isLoading } = useAuth();
+  const location = useLocation();
+  const isHomePage = location.pathname === "/";
   const { toast } = useToast();
 
   const displayUser = profile ? {
@@ -54,29 +56,33 @@ export function Header() {
           </Link>
 
           {/* Search Bar - Desktop */}
-          <div className="hidden flex-1 max-w-md md:block">
-            <form action="/" method="get">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
-                <Input
-                  type="search"
-                  name="q"
-                  placeholder="Search prompts..."
-                  className="pl-10"
-                />
-              </div>
-            </form>
-          </div>
+          {!isHomePage && (
+            <div className="hidden flex-1 max-w-md md:block">
+              <form action="/" method="get">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                  <Input
+                    type="search"
+                    name="q"
+                    placeholder="Search prompts..."
+                    className="pl-10"
+                  />
+                </div>
+              </form>
+            </div>
+          )}
 
           {/* Right Section */}
           <div className="flex items-center gap-2">
             {/* Search Button - Mobile */}
-            <Button variant="ghost" size="icon" className="md:hidden" asChild>
-              <Link to="/?search=true">
-                <Search className="h-5 w-5" />
-                <span className="sr-only">Search</span>
-              </Link>
-            </Button>
+            {!isHomePage && (
+              <Button variant="ghost" size="icon" className="md:hidden" asChild>
+                <Link to="/?search=true">
+                  <Search className="h-5 w-5" />
+                  <span className="sr-only">Search</span>
+                </Link>
+              </Button>
+            )}
 
             {/* Theme Toggle */}
             <ThemeToggle />

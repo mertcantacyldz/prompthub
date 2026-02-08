@@ -188,16 +188,19 @@ export default function Home() {
             })}
             <Sheet open={mobileFilterOpen} onOpenChange={setMobileFilterOpen}>
               <SheetTrigger asChild>
-                <Badge variant="outline" className="cursor-pointer gap-1">
+                <Button variant="outline" size="sm" className="h-7 gap-1 px-3 text-xs lg:hidden">
                   <SlidersHorizontal className="h-3 w-3" />
-                  More Filters
-                </Badge>
+                  Filters
+                </Button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-80">
-                <SheetHeader>
-                  <SheetTitle>Filters</SheetTitle>
+              <SheetContent side="right" className="w-[350px] sm:w-[400px]">
+                <SheetHeader className="border-b pb-4">
+                  <SheetTitle className="flex items-center gap-2">
+                    <Filter className="h-5 w-5" />
+                    Filters
+                  </SheetTitle>
                 </SheetHeader>
-                <div className="mt-6">
+                <div className="mt-4">
                   <FilterPanel />
                 </div>
               </SheetContent>
@@ -206,7 +209,7 @@ export default function Home() {
         </section>
 
         {/* Main Content */}
-        <section className="flex gap-8">
+        <section className="flex gap-8 mt-8">
           {/* Desktop Sidebar Filter */}
           <aside className="hidden w-64 shrink-0 lg:block">
             <div className="sticky top-24">
@@ -227,22 +230,6 @@ export default function Home() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <select
-                  className="h-9 rounded-md border border-[var(--border)] bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
-                  value={searchParams.get("sort") || "newest"}
-                  onChange={(e) => {
-                    const params = new URLSearchParams(searchParams);
-                    params.set("sort", e.target.value);
-                    params.set("page", "1");
-                    navigate(`/?${params.toString()}`);
-                  }}
-                >
-                  <option value="newest">Newest</option>
-                  <option value="trending">Trending</option>
-                  <option value="top">Top Rated</option>
-                </select>
-              </div>
             </div>
 
             {/* Prompt Grid */}
@@ -271,6 +258,6 @@ export default function Home() {
           </div>
         </section>
       </Container>
-    </div>
+    </div >
   );
 }

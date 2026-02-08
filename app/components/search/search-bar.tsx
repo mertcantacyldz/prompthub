@@ -25,14 +25,17 @@ export function SearchBar({
   const debouncedQuery = useDebounce(query, 300);
 
   useEffect(() => {
-    const params = new URLSearchParams(searchParams);
-    if (debouncedQuery) {
-      params.set("q", debouncedQuery);
-    } else {
-      params.delete("q");
+    const currentQ = searchParams.get("q") || "";
+    if (debouncedQuery !== currentQ) {
+      const params = new URLSearchParams(searchParams);
+      if (debouncedQuery) {
+        params.set("q", debouncedQuery);
+      } else {
+        params.delete("q");
+      }
+      params.delete("page"); // Reset pagination ONLY when search query changes
+      navigate(`?${params.toString()}`, { replace: true });
     }
-    params.delete("page"); // Reset pagination on search
-    navigate(`?${params.toString()}`, { replace: true });
   }, [debouncedQuery, navigate, searchParams]);
 
   const handleClear = () => {
