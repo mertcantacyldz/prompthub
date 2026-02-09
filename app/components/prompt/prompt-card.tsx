@@ -28,7 +28,7 @@ export interface PromptCardProps {
   is_saved?: boolean;
   onSave?: (id: string) => void;
   view_count: number;
-  copy_count: number;
+  save_count: number;
   className?: string;
 }
 
@@ -44,7 +44,7 @@ export function PromptCard({
   user,
   is_saved = false,
   view_count = 0,
-  copy_count = 0,
+  save_count = 0,
   onSave,
   className,
 }: PromptCardProps) {
@@ -202,8 +202,8 @@ export function PromptCard({
                   <span>{view_count}</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Copy className="h-3 w-3" />
-                  <span>{copy_count}</span>
+                  <Bookmark className="h-3 w-3" />
+                  <span>{save_count}</span>
                 </div>
               </div>
             </div>

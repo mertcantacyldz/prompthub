@@ -72,7 +72,7 @@ export function PromptList({
             }}
             is_saved={savedPromptIds.includes(prompt.id)}
             view_count={prompt.view_count || 0}
-            copy_count={prompt.copy_count || 0}
+            save_count={prompt.save_count || 0}
             onSave={onSave}
           />
         </div>

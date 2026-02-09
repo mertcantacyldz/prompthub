@@ -244,4 +244,5 @@ export type PromptSaveCount = Database["public"]["Views"]["prompt_save_counts"][
 export interface PromptWithDetails extends Prompt {
   profiles: Pick<Profile, "username" | "avatar_url">;
   prompt_ratings: PromptRating | null;
+  save_count?: number;
 }

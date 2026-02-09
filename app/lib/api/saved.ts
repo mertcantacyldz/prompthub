@@ -99,7 +99,8 @@ export async function getSavedPrompts(userId: string): Promise<PromptWithDetails
           prompts!saved_prompts_prompt_id_fkey (
             *,
             profiles!prompts_user_id_fkey (username, avatar_url),
-            prompt_ratings (prompt_id, rating_count, average_rating)
+            prompt_ratings (prompt_id, rating_count, average_rating),
+            prompt_save_counts (save_count)
           )
         `)
         .eq("user_id", userId)
@@ -115,10 +116,12 @@ export async function getSavedPrompts(userId: string): Promise<PromptWithDetails
         if (!p) return null;
         const rating = Array.isArray(p.prompt_ratings) ? p.prompt_ratings[0] : p.prompt_ratings;
         const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
+        const saveCounts = Array.isArray(p.prompt_save_counts) ? p.prompt_save_counts[0] : p.prompt_save_counts;
         return {
           ...p,
           profiles: profile || { username: "unknown", avatar_url: null },
-          prompt_ratings: rating || null
+          prompt_ratings: rating || null,
+          save_count: saveCounts?.save_count || 0
         } as PromptWithDetails;
       })
       .filter((prompt): prompt is PromptWithDetails => prompt !== null);

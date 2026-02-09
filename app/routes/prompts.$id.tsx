@@ -45,7 +45,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       prompt_ratings (
         average_rating,
         rating_count
-      )
+      ),
+      prompt_save_counts (save_count)
     `)
     .match({ id: params.id! })
     .single();
@@ -87,7 +88,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     prompt: {
       ...(prompt as unknown as Prompt),
       profiles: promptProfile || { id: "", username: "unknown", display_name: null, avatar_url: null },
-      prompt_ratings: promptRating || null
+      prompt_ratings: promptRating || null,
+      save_count: (Array.isArray(prompt.prompt_save_counts) ? prompt.prompt_save_counts[0] : prompt.prompt_save_counts)?.save_count || 0
     } as PromptWithDetails,
     initialIsSaved: isSaved,
     initialUserRating: userRating
@@ -255,8 +257,8 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
                       <span>{prompt.view_count || 0}</span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Copy className="h-3.5 w-3.5" />
-                      <span>{prompt.copy_count || 0}</span>
+                      <Bookmark className="h-3.5 w-3.5" />
+                      <span>{prompt.save_count || 0}</span>
                     </div>
                   </div>
                 </div>

@@ -24,6 +24,7 @@ export interface PaginatedResponse<T> {
 interface RawPromptResponse extends Prompt {
   profiles: { username: string; avatar_url: string | null } | { username: string; avatar_url: string | null }[];
   prompt_ratings: { rating_count: number; average_rating: number } | { rating_count: number; average_rating: number }[];
+  prompt_save_counts: { save_count: number } | { save_count: number }[];
 }
 
 // Get prompts with filters and pagination
@@ -45,7 +46,8 @@ export async function getPrompts(filters: PromptFilters = {}): Promise<Paginated
     .select(`
       *,
       profiles!prompts_user_id_fkey (username, avatar_url),
-      prompt_ratings (rating_count, average_rating)
+      prompt_ratings (rating_count, average_rating),
+      prompt_save_counts (save_count)
     `, { count: "exact" });
 
   // Filter by public/private
@@ -114,10 +116,12 @@ export async function getPrompts(filters: PromptFilters = {}): Promise<Paginated
     data: ((data as unknown as RawPromptResponse[]) || []).map(p => {
       const rating = Array.isArray(p.prompt_ratings) ? p.prompt_ratings[0] : p.prompt_ratings;
       const profiles = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
+      const saveCounts = Array.isArray(p.prompt_save_counts) ? p.prompt_save_counts[0] : p.prompt_save_counts;
       return {
         ...(p as unknown as Prompt),
         profiles: profiles || { username: "unknown", avatar_url: null },
-        prompt_ratings: (rating as PromptWithDetails['prompt_ratings']) || null
+        prompt_ratings: (rating as PromptWithDetails['prompt_ratings']) || null,
+        save_count: saveCounts?.save_count || 0
       } as PromptWithDetails;
     }),
     count: count || 0,
@@ -133,7 +137,8 @@ export async function getPromptById(id: string): Promise<PromptWithDetails | nul
     .select(`
       *,
       profiles!prompts_user_id_fkey (username, avatar_url),
-      prompt_ratings (prompt_id, rating_count, average_rating)
+      prompt_ratings (prompt_id, rating_count, average_rating),
+      prompt_save_counts (save_count)
     `)
     .eq("id", id)
     .maybeSingle();
@@ -144,12 +149,15 @@ export async function getPromptById(id: string): Promise<PromptWithDetails | nul
   }
 
   if (data) {
-    const rating = Array.isArray(data.prompt_ratings) ? data.prompt_ratings[0] : data.prompt_ratings;
-    const profiles = Array.isArray(data.profiles) ? data.profiles[0] : data.profiles;
+    const p = data as unknown as RawPromptResponse;
+    const rating = Array.isArray(p.prompt_ratings) ? p.prompt_ratings[0] : p.prompt_ratings;
+    const profiles = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
+    const saveCounts = Array.isArray(p.prompt_save_counts) ? p.prompt_save_counts[0] : p.prompt_save_counts;
     return {
-      ...(data as Prompt),
+      ...(p as unknown as Prompt),
       profiles: profiles as PromptWithDetails['profiles'],
       prompt_ratings: (rating as PromptWithDetails['prompt_ratings']) || null,
+      save_count: saveCounts?.save_count || 0,
     };
   }
 
@@ -227,7 +235,8 @@ export async function getUserPrompts(userId: string, includePrivate = false): Pr
     .select(`
       *,
       profiles!prompts_user_id_fkey (username, avatar_url),
-      prompt_ratings (prompt_id, rating_count, average_rating)
+      prompt_ratings (prompt_id, rating_count, average_rating),
+      prompt_save_counts (save_count)
     `)
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
@@ -246,10 +255,12 @@ export async function getUserPrompts(userId: string, includePrivate = false): Pr
   return ((data as unknown as RawPromptResponse[]) || []).map(p => {
     const rating = Array.isArray(p.prompt_ratings) ? p.prompt_ratings[0] : p.prompt_ratings;
     const profiles = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
+    const saveCounts = Array.isArray(p.prompt_save_counts) ? p.prompt_save_counts[0] : p.prompt_save_counts;
     return {
       ...(p as unknown as Prompt),
       profiles: profiles || { username: "unknown", avatar_url: null },
       prompt_ratings: (rating as PromptWithDetails['prompt_ratings']) || null,
+      save_count: saveCounts?.save_count || 0,
     } as PromptWithDetails;
   });
 }
