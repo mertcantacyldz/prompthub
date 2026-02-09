@@ -30,7 +30,7 @@ import type { Prompt, PromptUpdate, PromptWithDetails, InputModality } from "~/t
 
 export function meta() {
   return [
-    { title: `${m.prompt_editMeta()} - PromptHub` },
+    { title: `${m.prompt_editMeta()} - Promptopia` },
     { name: "description", content: m.prompt_editMetaDesc() },
   ];
 }

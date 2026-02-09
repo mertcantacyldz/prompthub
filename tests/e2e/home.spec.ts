@@ -7,7 +7,7 @@ test.describe("Home Page", () => {
 
   test("should display the header with logo", async ({ page }) => {
     await expect(page.locator("header")).toBeVisible();
-    await expect(page.getByRole("link", { name: /prompthub/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /promptopia/i })).toBeVisible();
   });
 
   test("should display search bar on desktop", async ({ page }) => {

@@ -43,7 +43,7 @@ type ActionData = {
 
 export function meta() {
   return [
-    { title: `${m.settings_title()} - PromptHub` },
+    { title: `${m.settings_title()} - Promptopia` },
     { name: "description", content: m.settings_manageAccount() },
   ];
 }

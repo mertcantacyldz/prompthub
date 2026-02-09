@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test.describe("Navigation", () => {
   test("should navigate to home from logo", async ({ page }) => {
     await page.goto("/auth/login");
-    await page.getByRole("link", { name: /prompthub/i }).first().click();
+    await page.getByRole("link", { name: /promptopia/i }).first().click();
     await expect(page).toHaveURL("/");
   });
 

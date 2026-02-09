@@ -185,7 +185,7 @@ Her sayfada `meta` fonksiyonu ile title ve description tanımlı:
 ```tsx
 export function meta() {
   return [
-    { title: "Page Title - PromptHub" },
+    { title: "Page Title - Promptopia" },
     { name: "description", content: "Page description" },
   ];
 }

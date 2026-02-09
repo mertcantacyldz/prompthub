@@ -1,6 +1,6 @@
 # Kimlik Doğrulama Sistemi (Authentication)
 
-Bu döküman, PromptHub projesindeki kimlik doğrulama mimarisini, `AuthProvider` bileşenini ve `auth-context.tsx` dosyasının rollerini açıklar.
+Bu döküman, Promptopia projesindeki kimlik doğrulama mimarisini, `AuthProvider` bileşenini ve `auth-context.tsx` dosyasının rollerini açıklar.
 
 ## 1. AuthProvider Nedir?
 

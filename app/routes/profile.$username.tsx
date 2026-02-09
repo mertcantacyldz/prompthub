@@ -17,7 +17,7 @@ import type { Profile, PromptWithDetails } from "~/types";
 
 export function meta({ params }: Route.MetaArgs) {
   return [
-    { title: `@${params.username} - PromptHub` },
+    { title: `@${params.username} - Promptopia` },
     { name: "description", content: m.profile_public_promptsBy({ username: params.username }) },
   ];
 }

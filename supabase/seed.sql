@@ -1,4 +1,4 @@
--- PromptHub Seed Data
+-- Promptopia Seed Data
 -- Bu dosyayı Supabase SQL Editor'da çalıştırarak örnek data ekleyebilirsiniz.
 
 -- NOT: Bu script'i çalıştırmadan önce:

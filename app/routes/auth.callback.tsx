@@ -8,7 +8,7 @@ import type { Route } from "./+types/auth.callback";
 
 export function meta() {
   return [
-    { title: `${m.auth_authenticating()} - PromptHub` },
+    { title: `${m.auth_authenticating()} - Promptopia` },
   ];
 }
 

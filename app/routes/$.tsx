@@ -7,7 +7,7 @@ import * as m from "~/paraglide/messages.js";
 
 export function meta() {
   return [
-    { title: `${m.notFound_metaTitle()} - PromptHub` },
+    { title: `${m.notFound_metaTitle()} - Promptopia` },
     { name: "description", content: m.notFound_metaDesc() },
   ];
 }

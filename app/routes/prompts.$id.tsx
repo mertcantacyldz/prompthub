@@ -22,7 +22,7 @@ import type { Prompt, PromptWithDetails } from "~/types";
 export function meta({ data }: Route.MetaArgs) {
   const prompt = data?.prompt;
   return [
-    { title: prompt ? `${prompt.title} - PromptHub` : `${m.prompt_detail_metaTitle()} - PromptHub` },
+    { title: prompt ? `${prompt.title} - Promptopia` : `${m.prompt_detail_metaTitle()} - Promptopia` },
     { name: "description", content: prompt?.description || m.prompt_detail_metaDesc() },
   ];
 }

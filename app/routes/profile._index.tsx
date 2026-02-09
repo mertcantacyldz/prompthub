@@ -20,7 +20,7 @@ import type { Route } from "./+types/profile._index";
 
 export function meta() {
   return [
-    { title: `${m.profile_myProfile()} - PromptHub` },
+    { title: `${m.profile_myProfile()} - Promptopia` },
     { name: "description", content: m.profile_myProfileDesc() },
   ];
 }

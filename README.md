@@ -1,8 +1,8 @@
-# PromptHub
+# Promptopia
 
 A modern platform for discovering, saving, and sharing AI prompts. Built with React Router v7, TypeScript, Tailwind CSS, and Supabase.
 
-![PromptHub Screenshot](https://via.placeholder.com/800x400?text=PromptHub+Screenshot)
+![Promptopia Screenshot](https://via.placeholder.com/800x400?text=Promptopia+Screenshot)
 
 ## Features
 
@@ -37,8 +37,8 @@ A modern platform for discovering, saving, and sharing AI prompts. Built with Re
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/prompthub.git
-cd prompthub
+git clone https://github.com/yourusername/promptopia.git
+cd promptopia
 ```
 
 2. Install dependencies:
@@ -115,7 +115,7 @@ npm run typecheck    # Run TypeScript check
 ## Project Structure
 
 ```
-prompthub/
+promptopia/
 ├── app/
 │   ├── components/
 │   │   ├── ui/          # shadcn/ui components

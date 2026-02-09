@@ -21,7 +21,7 @@ import type { Route } from "./+types/prompts.new";
 
 export function meta() {
   return [
-    { title: `${m.prompt_createNewMeta()} - PromptHub` },
+    { title: `${m.prompt_createNewMeta()} - Promptopia` },
     { name: "description", content: m.prompt_createNewMetaDesc() },
   ];
 }
