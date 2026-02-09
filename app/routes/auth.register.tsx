@@ -54,13 +54,15 @@ export async function action({ request }: Route.ActionArgs) {
     return data({ error: m.auth_usernameTaken() }, { status: 400 });
   }
 
+  const origin = new URL(request.url).origin;
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
         username: username,
-      }
+      },
+      emailRedirectTo: `${origin}/auth/callback`,
     }
   });
 
