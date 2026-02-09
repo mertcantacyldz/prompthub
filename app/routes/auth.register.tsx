@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, Form, useActionData, useNavigation, data, redirect } from "react-router";
-import { Container } from "~/components/layout";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -126,9 +125,8 @@ export default function Register() {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center py-12">
-      <Container className="max-w-md">
-        <Card>
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-12">
+      <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">{m.auth_createAccount()}</CardTitle>
             <CardDescription>
@@ -269,7 +267,6 @@ export default function Register() {
             </p>
           </CardFooter>
         </Card>
-      </Container>
     </div>
   );
 }

@@ -64,10 +64,13 @@ export function PromptCard({
     e.stopPropagation();
     if (isSaving) return;
 
-    console.log("[PromptCard] Save button clicked for promptId:", id);
     setIsSaving(true);
     try {
-      await onSave?.(id);
+      if (onSave) {
+        await onSave(id);
+      }
+    } catch (error) {
+      console.error("[PromptCard] Save failed:", error);
     } finally {
       setIsSaving(false);
     }

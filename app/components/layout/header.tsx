@@ -75,7 +75,7 @@ export function Header() {
           )}
 
           {/* Right Section */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             {/* Search Button - Mobile */}
             {!isHomePage && (
               <Button variant="ghost" size="icon" className="md:hidden" asChild>
@@ -175,10 +175,10 @@ export function Header() {
               </>
             ) : (
               <>
-                <Button variant="ghost" asChild>
+                <Button variant="ghost" asChild className="px-2 sm:px-4 text-sm">
                   <Link to={localizeHref("/auth/login")}>{m.common_login()}</Link>
                 </Button>
-                <Button asChild>
+                <Button asChild className="px-2 sm:px-4 text-sm">
                   <Link to={localizeHref("/auth/register")}>{m.common_signup()}</Link>
                 </Button>
               </>

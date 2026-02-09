@@ -48,17 +48,22 @@ export function AuthProvider({
 
   // Fetch user profile from profiles table
   const fetchProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
 
-    if (error) {
-      console.error("Error fetching profile:", error);
+      if (error) {
+        console.error("[AuthContext] fetchProfile error:", error);
+        return null;
+      }
+      return data;
+    } catch (err) {
+      console.error("[AuthContext] fetchProfile failed:", err);
       return null;
     }
-    return data;
   };
 
   // Refresh profile data
@@ -70,28 +75,31 @@ export function AuthProvider({
   };
 
   useEffect(() => {
-    // Get initial user
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
-      if (user) {
-        fetchProfile(user.id).then(setProfile);
-      }
-      setIsLoading(false);
-    });
-
     // Listen for auth changes
+    // IMPORTANT: Callback must NOT be async to avoid deadlock with Supabase's
+    // internal navigator.locks mechanism. Any Supabase API call inside an async
+    // callback would try to re-acquire the auth lock that is already held,
+    // causing an indefinite hang.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
-        // Authenticate the user data by contacting Supabase Auth server
-        const { data: { user } } = await supabase.auth.getUser();
-        setUser(user);
+        const currentUser = session.user;
+        setUser(currentUser);
 
-        if (user) {
-          const profileData = await fetchProfile(user.id);
-          setProfile(profileData);
-        }
+        // Schedule profile fetch OUTSIDE the auth lock context via setTimeout.
+        // This prevents deadlock: the callback returns synchronously, releasing
+        // the lock, and the profile fetch runs in a clean execution context.
+        setProfile(prev => {
+          if (prev?.id === currentUser.id) return prev;
+
+          setTimeout(() => {
+            fetchProfile(currentUser.id)
+              .then(newProfile => { if (newProfile) setProfile(newProfile); })
+              .catch(err => console.error("[AuthContext] Profile fetch error:", err));
+          }, 0);
+          return prev;
+        });
       } else {
         setUser(null);
         setProfile(null);
@@ -100,7 +108,9 @@ export function AuthProvider({
       setIsLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Sign in with email/password

@@ -102,6 +102,7 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
 
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(initialIsSaved);
+  const [isSaving, setIsSaving] = useState(false);
   const [userRating, setUserRating] = useState(initialUserRating);
   const [isRating, setIsRating] = useState(false);
 
@@ -128,21 +129,27 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
       return;
     }
 
+    if (isSaving) return;
+
+    setIsSaving(true);
     try {
-      const isSaved = await toggleSavePrompt(user.id, prompt.id);
-      setSaved(isSaved);
+      const result = await toggleSavePrompt(user.id, prompt.id);
+      setSaved(result);
       toast({
-        title: isSaved ? m.home_promptSaved() : m.home_promptRemoved(),
-        description: isSaved
+        title: result ? m.home_promptSaved() : m.home_promptRemoved(),
+        description: result
           ? m.home_addedToSaved()
           : m.home_removedFromSaved(),
       });
     } catch (error) {
+      console.error("[PromptDetail] Save failed:", error);
       toast({
         title: m.common_error(),
         description: m.toast_saveFailed(),
         variant: "destructive",
       });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -202,11 +209,16 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
                   variant="outline"
                   size="icon"
                   onClick={handleSave}
+                  disabled={isSaving}
                   className={saved ? "text-accent-500" : ""}
                 >
-                  <Bookmark
-                    className={`h-4 w-4 ${saved ? "fill-current" : ""}`}
-                  />
+                  {isSaving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Bookmark
+                      className={`h-4 w-4 ${saved ? "fill-current" : ""}`}
+                    />
+                  )}
                 </Button>
                 {isOwner && (
                   <Button variant="outline" size="icon" asChild>
@@ -285,7 +297,7 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
           <CardContent className="space-y-6 pt-6">
             {/* Description */}
             {prompt.description && (
-              <div>
+              <div className="mt-2">
                 <h2 className="mb-2 text-lg font-semibold">{m.prompt_detail_description()}</h2>
                 <p className="text-[var(--muted-foreground)]">
                   {prompt.description}

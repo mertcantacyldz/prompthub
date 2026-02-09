@@ -19,7 +19,7 @@ import "./app.css";
 import type { MiddlewareFunction } from "react-router";
 
 export const middleware: MiddlewareFunction[] = [
-  (ctx, next) => paraglideMiddleware(ctx.request, () => next()),
+  (ctx, next) => paraglideMiddleware(ctx.request.clone(), () => next()),
 ];
 
 export const links: Route.LinksFunction = () => [

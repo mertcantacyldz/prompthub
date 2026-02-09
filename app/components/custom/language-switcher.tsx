@@ -23,7 +23,7 @@ export function LanguageSwitcher() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="sm" className="gap-2 px-2">
           <Languages className="h-4 w-4" />
-          <span className="text-sm font-medium">
+          <span className="hidden text-sm font-medium sm:inline">
             {LOCALE_LABELS[currentLocale]}
           </span>
         </Button>
