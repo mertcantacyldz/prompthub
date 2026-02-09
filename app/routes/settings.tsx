@@ -24,13 +24,15 @@ import { cn } from "~/lib/utils";
 import { useState, useEffect, useRef } from "react";
 import { getSupabaseServerClient } from "~/lib/supabase";
 import { uploadAvatar, deleteAvatar } from "~/lib/api";
+import { localizeHref } from "~/paraglide/runtime.js";
+import * as m from "~/paraglide/messages.js";
 import type { Route } from "./+types/settings";
 import type { Profile } from "~/types";
 
 const THEMES = [
-  { value: "light" as const, label: "Light", icon: Sun },
-  { value: "dark" as const, label: "Dark", icon: Moon },
-  { value: "system" as const, label: "System", icon: Monitor },
+  { value: "light" as const, label: m.settings_themeLight, icon: Sun },
+  { value: "dark" as const, label: m.settings_themeDark, icon: Moon },
+  { value: "system" as const, label: m.settings_themeSystem, icon: Monitor },
 ];
 
 type ActionData = {
@@ -41,8 +43,8 @@ type ActionData = {
 
 export function meta() {
   return [
-    { title: "Settings - PromptHub" },
-    { name: "description", content: "Manage your account settings" },
+    { title: `${m.settings_title()} - PromptHub` },
+    { name: "description", content: m.settings_manageAccount() },
   ];
 }
 
@@ -51,7 +53,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    return redirect("/auth/login?redirectTo=/settings");
+    return redirect(localizeHref("/auth/login?redirectTo=/settings"));
   }
 
   const { data: profile } = await supabase
@@ -68,7 +70,7 @@ export async function action({ request }: Route.ActionArgs) {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    return redirect("/auth/login", { headers });
+    return redirect(localizeHref("/auth/login"), { headers });
   }
 
   const formData = await request.formData();
@@ -81,13 +83,13 @@ export async function action({ request }: Route.ActionArgs) {
 
     // Validation
     if (username.length < 3) {
-      return data({ error: "Username must be at least 3 characters." }, { status: 400 });
+      return data({ error: m.settings_usernameMin() }, { status: 400 });
     }
     if (username.length > 30) {
-      return data({ error: "Username must be less than 30 characters." }, { status: 400 });
+      return data({ error: m.settings_usernameMax() }, { status: 400 });
     }
     if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      return data({ error: "Username can only contain letters, numbers, and underscores." }, { status: 400 });
+      return data({ error: m.settings_usernameChars() }, { status: 400 });
     }
 
     // Check availability if username matches another user
@@ -99,7 +101,7 @@ export async function action({ request }: Route.ActionArgs) {
       .single();
 
     if (existingUser) {
-      return data({ error: "Username is already taken." }, { status: 400 });
+      return data({ error: m.auth_usernameTaken() }, { status: 400 });
     }
 
     const { error } = await supabase
@@ -114,10 +116,10 @@ export async function action({ request }: Route.ActionArgs) {
 
     if (error) {
       console.error("Error updating profile:", error);
-      return data({ error: "Failed to update profile. Please try again." }, { status: 500, headers });
+      return data({ error: m.common_error() }, { status: 500, headers });
     }
 
-    return data({ success: true, message: "Profile updated successfully." }, { headers });
+    return data({ success: true, message: m.settings_profileUpdatedDesc() }, { headers });
   }
 
   return null;
@@ -146,17 +148,17 @@ export default function Settings() {
   useEffect(() => {
     if (actionData?.success) {
       toast({
-        title: "Profile updated",
+        title: m.settings_profileUpdated(),
         description: actionData.message,
       });
       refreshProfile();
     } else if (actionData?.error) {
       toast({
-        title: "Error",
+        title: m.common_error(),
         description: actionData.error,
         variant: "destructive",
       });
-      if (actionData.error.includes("Username")) {
+      if (actionData.error.includes("Username") || actionData.error.includes("Kullanıcı")) {
         setUsernameError(actionData.error);
       }
     }
@@ -170,16 +172,16 @@ export default function Settings() {
   // Client-side validation for username (for immediate feedback)
   const validateUsernameClient = (value: string) => {
     if (!value.trim()) {
-      return "Username is required";
+      return m.settings_usernameRequired();
     }
     if (value.length < 3) {
-      return "Username must be at least 3 characters";
+      return m.settings_usernameMin();
     }
     if (value.length > 30) {
-      return "Username must be less than 30 characters";
+      return m.settings_usernameMax();
     }
     if (!/^[a-zA-Z0-9_]+$/.test(value)) {
-      return "Username can only contain letters, numbers, and underscores";
+      return m.settings_usernameChars();
     }
     return "";
   };
@@ -197,8 +199,8 @@ export default function Settings() {
     // Validate file
     if (!file.type.startsWith("image/")) {
       toast({
-        title: "Invalid file type",
-        description: "Please select an image file.",
+        title: m.settings_invalidFileType(),
+        description: m.settings_selectImage(),
         variant: "destructive",
       });
       return;
@@ -206,8 +208,8 @@ export default function Settings() {
 
     if (file.size > 2 * 1024 * 1024) {
       toast({
-        title: "File too large",
-        description: "Please select an image smaller than 2MB.",
+        title: m.settings_fileTooLarge(),
+        description: m.settings_selectSmallerImage(),
         variant: "destructive",
       });
       return;
@@ -219,14 +221,14 @@ export default function Settings() {
       await refreshProfile();
 
       toast({
-        title: "Avatar updated",
-        description: "Your avatar has been updated successfully.",
+        title: m.settings_avatarUpdated(),
+        description: m.settings_avatarUpdatedDesc(),
       });
     } catch (error) {
       console.error("Error uploading avatar:", error);
       toast({
-        title: "Error",
-        description: "Failed to upload avatar. Please try again.",
+        title: m.common_error(),
+        description: m.common_error(),
         variant: "destructive",
       });
     } finally {
@@ -246,14 +248,14 @@ export default function Settings() {
       await refreshProfile();
 
       toast({
-        title: "Avatar removed",
-        description: "Your avatar has been removed.",
+        title: m.settings_avatarRemoved(),
+        description: m.settings_avatarRemovedDesc(),
       });
     } catch (error) {
       console.error("Error deleting avatar:", error);
       toast({
-        title: "Error",
-        description: "Failed to remove avatar. Please try again.",
+        title: m.common_error(),
+        description: m.common_error(),
         variant: "destructive",
       });
     } finally {
@@ -270,14 +272,14 @@ export default function Settings() {
   return (
     <div className="py-8">
       <Container className="max-w-2xl">
-        <h1 className="mb-8 text-3xl font-bold">Settings</h1>
+        <h1 className="mb-8 text-3xl font-bold">{m.settings_title()}</h1>
 
         {/* Profile Settings */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Profile</CardTitle>
+            <CardTitle>{m.settings_profile()}</CardTitle>
             <CardDescription>
-              Manage your public profile information
+              {m.settings_manageProfile()}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -309,12 +311,12 @@ export default function Settings() {
                     {isUploadingAvatar ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Uploading...
+                        {m.settings_uploading()}
                       </>
                     ) : (
                       <>
                         <Upload className="mr-2 h-4 w-4" />
-                        Upload
+                        {m.settings_upload()}
                       </>
                     )}
                   </Button>
@@ -335,7 +337,7 @@ export default function Settings() {
                   )}
                 </div>
                 <p className="text-xs text-[var(--muted-foreground)]">
-                  Max file size: 2MB. Supported formats: JPG, PNG, GIF
+                  {m.settings_maxFileSize()}
                 </p>
               </div>
 
@@ -343,7 +345,7 @@ export default function Settings() {
 
               {/* Username */}
               <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
+                <Label htmlFor="username">{m.auth_username()}</Label>
                 <Input
                   id="username"
                   name="username"
@@ -359,26 +361,26 @@ export default function Settings() {
 
               {/* Display Name */}
               <div className="space-y-2">
-                <Label htmlFor="display_name">Display Name</Label>
+                <Label htmlFor="display_name">{m.settings_displayName()}</Label>
                 <Input
                   id="display_name"
                   name="display_name"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="Your display name"
+                  placeholder={m.settings_displayNamePlaceholder()}
                   disabled={isUpdating}
                 />
               </div>
 
               {/* Bio */}
               <div className="space-y-2">
-                <Label htmlFor="bio">Bio</Label>
+                <Label htmlFor="bio">{m.settings_bio()}</Label>
                 <Textarea
                   id="bio"
                   name="bio"
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
-                  placeholder="Tell us about yourself..."
+                  placeholder={m.settings_bioPlaceholder()}
                   rows={3}
                   disabled={isUpdating}
                 />
@@ -388,10 +390,10 @@ export default function Settings() {
                 {isUpdating ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
+                    {m.common_saving()}
                   </>
                 ) : (
-                  "Save Changes"
+                  m.common_saveChanges()
                 )}
               </Button>
             </Form>
@@ -401,15 +403,15 @@ export default function Settings() {
         {/* Appearance */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Appearance</CardTitle>
+            <CardTitle>{m.settings_appearance()}</CardTitle>
             <CardDescription>
-              Customize how PromptHub looks on your device
+              {m.settings_customizeAppearance()}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <Label>Theme</Label>
-              <div className="grid grid-cols-3 gap-4">
+              <Label>{m.settings_theme()}</Label>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 {THEMES.map(({ value, label, icon: Icon }) => (
                   <button
                     key={value}
@@ -422,7 +424,7 @@ export default function Settings() {
                     )}
                   >
                     <Icon className="h-6 w-6" />
-                    <span className="text-sm font-medium">{label}</span>
+                    <span className="text-sm font-medium">{label()}</span>
                     {theme === value && (
                       <Check className="h-4 w-4 text-accent-500" />
                     )}
@@ -436,13 +438,13 @@ export default function Settings() {
         {/* Account */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Account</CardTitle>
-            <CardDescription>Manage your account settings</CardDescription>
+            <CardTitle>{m.settings_account()}</CardTitle>
+            <CardDescription>{m.settings_manageAccount()}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">Email</p>
+                <p className="font-medium">{m.auth_email()}</p>
                 <p className="text-sm text-[var(--muted-foreground)]">
                   {initialProfile.email}
                 </p>
@@ -454,32 +456,30 @@ export default function Settings() {
         {/* Danger Zone */}
         <Card className="border-red-500/50">
           <CardHeader>
-            <CardTitle className="text-red-500">Danger Zone</CardTitle>
+            <CardTitle className="text-red-500">{m.settings_dangerZone()}</CardTitle>
             <CardDescription>
-              Irreversible and destructive actions
+              {m.settings_dangerDescription()}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">Delete Account</p>
+                <p className="font-medium">{m.settings_deleteAccount()}</p>
                 <p className="text-sm text-[var(--muted-foreground)]">
-                  Permanently delete your account and all data
+                  {m.settings_deleteAccountDesc()}
                 </p>
               </div>
               <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
                 <DialogTrigger asChild>
                   <Button variant="destructive" size="sm">
-                    Delete Account
+                    {m.settings_deleteAccount()}
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Delete Account</DialogTitle>
+                    <DialogTitle>{m.settings_deleteAccount()}</DialogTitle>
                     <DialogDescription>
-                      Are you sure you want to delete your account? This action
-                      cannot be undone. All your prompts, ratings, and saved items
-                      will be permanently deleted.
+                      {m.settings_deleteConfirmDesc()}
                     </DialogDescription>
                   </DialogHeader>
                   <DialogFooter>
@@ -487,20 +487,20 @@ export default function Settings() {
                       variant="outline"
                       onClick={() => setShowDeleteDialog(false)}
                     >
-                      Cancel
+                      {m.common_cancel()}
                     </Button>
                     <Button
                       variant="destructive"
                       onClick={() => {
                         toast({
-                          title: "Not implemented",
-                          description: "Account deletion is not yet available.",
+                          title: m.settings_notImplemented(),
+                          description: m.settings_notImplementedDesc(),
                           variant: "destructive",
                         });
                         setShowDeleteDialog(false);
                       }}
                     >
-                      Delete Account
+                      {m.settings_deleteAccount()}
                     </Button>
                   </DialogFooter>
                 </DialogContent>

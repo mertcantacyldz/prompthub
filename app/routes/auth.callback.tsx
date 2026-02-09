@@ -2,11 +2,13 @@ import { redirect } from "react-router";
 import { Container } from "~/components/layout";
 import { getSupabaseServerClient } from "~/lib/supabase";
 import { Loader2 } from "lucide-react";
+import { localizeHref } from "~/paraglide/runtime.js";
+import * as m from "~/paraglide/messages.js";
 import type { Route } from "./+types/auth.callback";
 
 export function meta() {
   return [
-    { title: "Authenticating... - PromptHub" },
+    { title: `${m.auth_authenticating()} - PromptHub` },
   ];
 }
 
@@ -34,7 +36,7 @@ export default function AuthCallback() {
       <Container className="max-w-md text-center">
         <Loader2 className="mx-auto h-8 w-8 animate-spin text-accent-500" />
         <p className="mt-4 text-[var(--muted-foreground)]">
-          Completing authentication...
+          {m.auth_completingAuth()}
         </p>
       </Container>
     </div>

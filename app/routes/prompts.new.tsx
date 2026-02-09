@@ -8,18 +8,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Switch } from "~/components/ui/switch";
 import { Badge } from "~/components/ui/badge";
 import { CATEGORIES, AI_PLATFORMS, INPUT_MODALITIES } from "~/lib/utils/constants";
+import { getCategoryDisplayName, getModalityDisplayName } from "~/lib/utils/i18n-helpers";
 import { X, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getSupabaseServerClient } from "~/lib/supabase";
 import { useAuth } from "~/context";
 import { useToast } from "~/hooks/use-toast";
+import { localizeHref } from "~/paraglide/runtime.js";
+import * as m from "~/paraglide/messages.js";
 import type { InputModality, Prompt, PromptInsert } from "~/types";
 import type { Route } from "./+types/prompts.new";
 
 export function meta() {
   return [
-    { title: "Create New Prompt - PromptHub" },
-    { name: "description", content: "Create and share a new AI prompt" },
+    { title: `${m.prompt_createNewMeta()} - PromptHub` },
+    { name: "description", content: m.prompt_createNewMetaDesc() },
   ];
 }
 
@@ -28,7 +31,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    return redirect("/auth/login?redirectTo=/prompts/new");
+    return redirect(localizeHref("/auth/login?redirectTo=/prompts/new"));
   }
 
   return {};
@@ -39,7 +42,7 @@ export async function action({ request }: Route.ActionArgs) {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    return redirect("/auth/login", { headers });
+    return redirect(localizeHref("/auth/login"), { headers });
   }
 
   const formData = await request.formData();
@@ -53,16 +56,16 @@ export async function action({ request }: Route.ActionArgs) {
 
   // Validation
   if (title.trim().length < 3) {
-    return data({ error: "Title must be at least 3 characters long." }, { status: 400 });
+    return data({ error: m.prompt_validation_titleMin() }, { status: 400 });
   }
   if (prompt_text.trim().length < 10) {
-    return data({ error: "Prompt text must be at least 10 characters long." }, { status: 400 });
+    return data({ error: m.prompt_validation_textMin() }, { status: 400 });
   }
   if (categories.length === 0) {
-    return data({ error: "Please select at least one category." }, { status: 400 });
+    return data({ error: m.prompt_validation_categoryRequired() }, { status: 400 });
   }
   if (ai_platforms.length === 0) {
-    return data({ error: "Please select at least one AI platform." }, { status: 400 });
+    return data({ error: m.prompt_validation_platformRequired() }, { status: 400 });
   }
 
   const { data: newPrompt, error } = await supabase
@@ -81,10 +84,10 @@ export async function action({ request }: Route.ActionArgs) {
     .single();
 
   if (error) {
-    return data({ error: "Failed to create prompt. Please try again." }, { status: 500, headers });
+    return data({ error: m.prompt_validation_createFailed() }, { status: 500, headers });
   }
 
-  return redirect(`/prompts/${newPrompt?.id}`, { headers });
+  return redirect(localizeHref(`/prompts/${newPrompt?.id}`), { headers });
 }
 
 export default function NewPrompt() {
@@ -102,7 +105,7 @@ export default function NewPrompt() {
   useEffect(() => {
     if (actionData?.error) {
       toast({
-        title: "Error",
+        title: m.common_error(),
         description: actionData.error,
         variant: "destructive",
       });
@@ -134,7 +137,7 @@ export default function NewPrompt() {
       <Container className="max-w-3xl">
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Create New Prompt</CardTitle>
+            <CardTitle className="text-2xl">{m.prompt_createNew()}</CardTitle>
           </CardHeader>
           <CardContent>
             <Form method="post" className="space-y-6">
@@ -149,11 +152,11 @@ export default function NewPrompt() {
 
               {/* Title */}
               <div className="space-y-2">
-                <Label htmlFor="title">Title *</Label>
+                <Label htmlFor="title">{m.prompt_title()}</Label>
                 <Input
                   id="title"
                   name="title"
-                  placeholder="Enter a descriptive title for your prompt"
+                  placeholder={m.prompt_titlePlaceholder()}
                   disabled={isSubmitting}
                   required
                 />
@@ -161,11 +164,11 @@ export default function NewPrompt() {
 
               {/* Description */}
               <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description">{m.prompt_description()}</Label>
                 <Textarea
                   id="description"
                   name="description"
-                  placeholder="Briefly describe what this prompt does and when to use it"
+                  placeholder={m.prompt_descriptionPlaceholder()}
                   disabled={isSubmitting}
                   rows={3}
                 />
@@ -173,11 +176,11 @@ export default function NewPrompt() {
 
               {/* Prompt Text */}
               <div className="space-y-2">
-                <Label htmlFor="prompt_text">Prompt Text *</Label>
+                <Label htmlFor="prompt_text">{m.prompt_promptText()}</Label>
                 <Textarea
                   id="prompt_text"
                   name="prompt_text"
-                  placeholder="Enter your prompt here..."
+                  placeholder={m.prompt_promptTextPlaceholder()}
                   disabled={isSubmitting}
                   rows={8}
                   required
@@ -187,7 +190,7 @@ export default function NewPrompt() {
 
               {/* Categories */}
               <div className="space-y-2">
-                <Label>Categories * (select at least one)</Label>
+                <Label>{m.prompt_categoriesLabel()}</Label>
                 <div className="flex flex-wrap gap-2">
                   {CATEGORIES.map((category) => (
                     <Badge
@@ -200,7 +203,7 @@ export default function NewPrompt() {
                       className="cursor-pointer"
                       onClick={() => toggleCategory(category)}
                     >
-                      {category}
+                      {getCategoryDisplayName(category)}
                       {selectedCategories.includes(category) && (
                         <X className="ml-1 h-3 w-3" />
                       )}
@@ -211,7 +214,7 @@ export default function NewPrompt() {
 
               {/* AI Platforms */}
               <div className="space-y-2">
-                <Label>Best AI Platforms * (select at least one)</Label>
+                <Label>{m.prompt_platformsLabel()}</Label>
                 <div className="flex flex-wrap gap-2">
                   {AI_PLATFORMS.map((platform) => (
                     <Badge
@@ -235,7 +238,7 @@ export default function NewPrompt() {
 
               {/* Input Modality */}
               <div className="space-y-2">
-                <Label htmlFor="input_modality">Input Type</Label>
+                <Label htmlFor="input_modality">{m.prompt_inputType()}</Label>
                 <select
                   id="input_modality"
                   name="input_modality"
@@ -244,7 +247,7 @@ export default function NewPrompt() {
                 >
                   {INPUT_MODALITIES.map((modality) => (
                     <option key={modality} value={modality}>
-                      {modality.charAt(0).toUpperCase() + modality.slice(1)}
+                      {getModalityDisplayName(modality)}
                     </option>
                   ))}
                 </select>
@@ -253,11 +256,11 @@ export default function NewPrompt() {
               {/* Public/Private */}
               <div className="flex items-center justify-between rounded-lg border border-[var(--border)] p-4">
                 <div className="space-y-0.5">
-                  <Label htmlFor="is_public">Make Public</Label>
+                  <Label htmlFor="is_public">{m.prompt_makePublic()}</Label>
                   <p className="text-sm text-[var(--muted-foreground)]">
                     {isPublic
-                      ? "Anyone can see and use this prompt"
-                      : "Only you can see this prompt"}
+                      ? m.prompt_publicDesc()
+                      : m.prompt_privateDesc()}
                   </p>
                 </div>
                 <Switch
@@ -274,14 +277,14 @@ export default function NewPrompt() {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating...
+                      {m.prompt_creating()}
                     </>
                   ) : (
-                    "Create Prompt"
+                    m.common_newPrompt()
                   )}
                 </Button>
                 <Button type="button" variant="outline" onClick={handleCancel} disabled={isSubmitting}>
-                  Cancel
+                  {m.common_cancel()}
                 </Button>
               </div>
             </Form>

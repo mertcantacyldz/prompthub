@@ -8,12 +8,9 @@ export async function getUserRating(userId: string, promptId: string): Promise<R
     .select("*")
     .eq("user_id", userId)
     .eq("prompt_id", promptId)
-    .single();
+    .maybeSingle();
 
   if (error) {
-    if (error.code === "PGRST116") {
-      return null; // Not found
-    }
     console.error("Error fetching rating:", error);
     throw error;
   }
@@ -82,12 +79,9 @@ export async function getPromptRatingStats(promptId: string): Promise<{ count: n
     .from("prompt_ratings")
     .select("rating_count, average_rating")
     .eq("prompt_id", promptId)
-    .single();
+    .maybeSingle();
 
   if (error) {
-    if (error.code === "PGRST116") {
-      return { count: 0, average: 0 };
-    }
     console.error("Error fetching rating stats:", error);
     throw error;
   }

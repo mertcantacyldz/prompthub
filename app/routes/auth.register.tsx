@@ -10,12 +10,14 @@ import { Github, Mail, Loader2 } from "lucide-react";
 import { useAuth } from "~/context";
 import { useToast } from "~/hooks/use-toast";
 import { getSupabaseServerClient } from "~/lib/supabase";
+import { localizeHref } from "~/paraglide/runtime.js";
+import * as m from "~/paraglide/messages.js";
 import type { Route } from "./+types/auth.register";
 
 export function meta() {
   return [
-    { title: "Sign Up - PromptHub" },
-    { name: "description", content: "Create your PromptHub account" },
+    { title: `${m.auth_registerMetaTitle()}` },
+    { name: "description", content: m.auth_registerMetaDesc() },
   ];
 }
 
@@ -28,16 +30,16 @@ export async function action({ request }: Route.ActionArgs) {
 
   // Validation
   if (username.length < 3) {
-    return data({ error: "Username must be at least 3 characters" }, { status: 400 });
+    return data({ error: m.auth_usernameMin() }, { status: 400 });
   }
   if (!/^[a-z0-9_]+$/.test(username)) {
-    return data({ error: "Username can only contain letters, numbers, and underscores" }, { status: 400 });
+    return data({ error: m.auth_usernameChars() }, { status: 400 });
   }
   if (password.length < 6) {
-    return data({ error: "Password must be at least 6 characters" }, { status: 400 });
+    return data({ error: m.auth_passwordMin() }, { status: 400 });
   }
   if (password !== confirmPassword) {
-    return data({ error: "Passwords do not match" }, { status: 400 });
+    return data({ error: m.auth_passwordMismatch() }, { status: 400 });
   }
 
   const { supabase, headers } = getSupabaseServerClient(request);
@@ -50,7 +52,7 @@ export async function action({ request }: Route.ActionArgs) {
     .single();
 
   if (existingUser) {
-    return data({ error: "This username is already in use. Please choose another." }, { status: 400 });
+    return data({ error: m.auth_usernameTaken() }, { status: 400 });
   }
 
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
@@ -90,7 +92,7 @@ export default function Register() {
   useEffect(() => {
     if (actionData?.error) {
       toast({
-        title: "Registration failed",
+        title: m.auth_registrationFailed(),
         description: actionData.error,
         variant: "destructive",
       });
@@ -102,7 +104,7 @@ export default function Register() {
     const { error } = await signInWithGoogle();
     if (error) {
       toast({
-        title: "Registration failed",
+        title: m.auth_registrationFailed(),
         description: error.message,
         variant: "destructive",
       });
@@ -115,7 +117,7 @@ export default function Register() {
     const { error } = await signInWithGithub();
     if (error) {
       toast({
-        title: "Registration failed",
+        title: m.auth_registrationFailed(),
         description: error.message,
         variant: "destructive",
       });
@@ -128,9 +130,9 @@ export default function Register() {
       <Container className="max-w-md">
         <Card>
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Create an account</CardTitle>
+            <CardTitle className="text-2xl">{m.auth_createAccount()}</CardTitle>
             <CardDescription>
-              Join PromptHub to discover and share AI prompts
+              {m.auth_joinPromptHub()}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -164,7 +166,7 @@ export default function Register() {
                     />
                   </svg>
                 )}
-                Continue with Google
+                {m.auth_continueWithGoogle()}
               </Button>
               <Button
                 variant="outline"
@@ -177,7 +179,7 @@ export default function Register() {
                 ) : (
                   <Github className="mr-2 h-4 w-4" />
                 )}
-                Continue with GitHub
+                {m.auth_continueWithGithub()}
               </Button>
             </div>
 
@@ -187,7 +189,7 @@ export default function Register() {
               </div>
               <div className="relative flex justify-center text-xs uppercase">
                 <span className="bg-[var(--card)] px-2 text-[var(--muted-foreground)]">
-                  Or continue with
+                  {m.auth_orContinueWith()}
                 </span>
               </div>
             </div>
@@ -196,29 +198,29 @@ export default function Register() {
             <Form method="post" className="space-y-4">
               <input type="hidden" name="intent" value="register" />
               <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
+                <Label htmlFor="username">{m.auth_username()}</Label>
                 <Input
                   id="username"
                   name="username"
                   type="text"
-                  placeholder="johndoe"
+                  placeholder={m.auth_usernamePlaceholder()}
                   disabled={isRegistering}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{m.auth_email()}</Label>
                 <Input
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="name@example.com"
+                  placeholder={m.auth_emailPlaceholder()}
                   disabled={isRegistering}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{m.auth_password()}</Label>
                 <Input
                   id="password"
                   name="password"
@@ -228,7 +230,7 @@ export default function Register() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Label htmlFor="confirmPassword">{m.auth_confirmPassword()}</Label>
                 <Input
                   id="confirmPassword"
                   name="confirmPassword"
@@ -243,26 +245,26 @@ export default function Register() {
                 ) : (
                   <Mail className="mr-2 h-4 w-4" />
                 )}
-                Create Account
+                {m.auth_createAccountBtn()}
               </Button>
             </Form>
 
             <p className="text-center text-xs text-[var(--muted-foreground)]">
-              By creating an account, you agree to our{" "}
-              <Link to="/terms" className="text-accent-500 hover:underline">
-                Terms of Service
+              {m.auth_agreeToTermsPre()}{" "}
+              <Link to={localizeHref("/terms")} className="text-accent-500 hover:underline">
+                {m.auth_termsOfService()}
               </Link>{" "}
-              and{" "}
-              <Link to="/privacy" className="text-accent-500 hover:underline">
-                Privacy Policy
+              {m.auth_and()}{" "}
+              <Link to={localizeHref("/privacy")} className="text-accent-500 hover:underline">
+                {m.auth_privacyPolicy()}
               </Link>
             </p>
           </CardContent>
           <CardFooter className="flex justify-center">
             <p className="text-sm text-[var(--muted-foreground)]">
-              Already have an account?{" "}
-              <Link to="/auth/login" className="text-accent-500 hover:underline">
-                Log in
+              {m.auth_alreadyHaveAccount()}{" "}
+              <Link to={localizeHref("/auth/login")} className="text-accent-500 hover:underline">
+                {m.common_login()}
               </Link>
             </p>
           </CardFooter>

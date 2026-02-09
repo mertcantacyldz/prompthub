@@ -7,12 +7,9 @@ export async function getProfileById(userId: string): Promise<Profile | null> {
     .from("profiles")
     .select("*")
     .eq("id", userId)
-    .single();
+    .maybeSingle();
 
   if (error) {
-    if (error.code === "PGRST116") {
-      return null;
-    }
     console.error("Error fetching profile:", error);
     throw error;
   }
@@ -26,12 +23,9 @@ export async function getProfileByUsername(username: string): Promise<Profile | 
     .from("profiles")
     .select("*")
     .eq("username", username.toLowerCase())
-    .single();
+    .maybeSingle();
 
   if (error) {
-    if (error.code === "PGRST116") {
-      return null;
-    }
     console.error("Error fetching profile:", error);
     throw error;
   }
@@ -68,10 +62,11 @@ export async function isUsernameAvailable(username: string, currentUserId?: stri
     query = query.neq("id", currentUserId);
   }
 
-  const { data, error } = await query.single();
+  const { data, error } = await query.maybeSingle();
 
-  if (error && error.code === "PGRST116") {
-    return true; // No match found, username is available
+  if (error) {
+    console.error("Error checking username availability:", error);
+    throw error;
   }
 
   return !data;

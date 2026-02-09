@@ -10,12 +10,15 @@ import { Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getProfileByUsername, getUserPrompts, getUserStats } from "~/lib/api";
 import { useToast } from "~/hooks/use-toast";
+import { localizeHref } from "~/paraglide/runtime.js";
+import { getCategoryDisplayName } from "~/lib/utils/i18n-helpers";
+import * as m from "~/paraglide/messages.js";
 import type { Profile, PromptWithDetails } from "~/types";
 
 export function meta({ params }: Route.MetaArgs) {
   return [
     { title: `@${params.username} - PromptHub` },
-    { name: "description", content: `View ${params.username}'s profile` },
+    { name: "description", content: m.profile_public_promptsBy({ username: params.username }) },
   ];
 }
 
@@ -36,11 +39,11 @@ export default function UserProfile({ params }: Route.ComponentProps) {
 
         if (!userProfile) {
           toast({
-            title: "User not found",
-            description: "This user doesn't exist.",
+            title: m.profile_public_userNotFound(),
+            description: m.profile_public_userNotFoundDesc(),
             variant: "destructive",
           });
-          navigate("/");
+          navigate(localizeHref("/"));
           return;
         }
 
@@ -56,8 +59,8 @@ export default function UserProfile({ params }: Route.ComponentProps) {
       } catch (error) {
         console.error("Error fetching profile:", error);
         toast({
-          title: "Error",
-          description: "Failed to load profile.",
+          title: m.common_error(),
+          description: m.profile_public_loadFailed(),
           variant: "destructive",
         });
       } finally {
@@ -130,7 +133,7 @@ export default function UserProfile({ params }: Route.ComponentProps) {
               </p>
             )}
             <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-              Member since {new Date(profile.created_at).toLocaleDateString()}
+              {m.profile_memberSince({ date: new Date(profile.created_at).toLocaleDateString() })}
             </p>
           </div>
         </div>
@@ -140,19 +143,19 @@ export default function UserProfile({ params }: Route.ComponentProps) {
           <Card>
             <CardContent className="p-4 text-center">
               <p className="text-2xl font-bold">{stats.promptCount}</p>
-              <p className="text-sm text-[var(--muted-foreground)]">Prompts</p>
+              <p className="text-sm text-[var(--muted-foreground)]">{m.profile_prompts()}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
               <p className="text-2xl font-bold">{totalRatings}</p>
-              <p className="text-sm text-[var(--muted-foreground)]">Ratings</p>
+              <p className="text-sm text-[var(--muted-foreground)]">{m.profile_public_ratings()}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
               <p className="text-2xl font-bold">{avgRating.toFixed(1)}</p>
-              <p className="text-sm text-[var(--muted-foreground)]">Avg</p>
+              <p className="text-sm text-[var(--muted-foreground)]">{m.profile_public_avg()}</p>
             </CardContent>
           </Card>
         </div>
@@ -160,12 +163,12 @@ export default function UserProfile({ params }: Route.ComponentProps) {
         {/* User's Prompts */}
         <div>
           <h2 className="mb-4 text-xl font-semibold">
-            Prompts by @{profile.username}
+            {m.profile_public_promptsBy({ username: profile.username })}
           </h2>
           {userPrompts.length > 0 ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {userPrompts.map((prompt) => (
-                <Link key={prompt.id} to={`/prompts/${prompt.id}`}>
+                <Link key={prompt.id} to={localizeHref(`/prompts/${prompt.id}`)}>
                   <Card className="h-full transition-shadow hover:shadow-lg">
                     <CardHeader className="pb-2">
                       <h3 className="font-semibold line-clamp-1">
@@ -174,7 +177,7 @@ export default function UserProfile({ params }: Route.ComponentProps) {
                     </CardHeader>
                     <CardContent className="pb-2">
                       <p className="text-sm text-[var(--muted-foreground)] line-clamp-2">
-                        {prompt.description || "No description"}
+                        {prompt.description || m.profile_noDescription()}
                       </p>
                       <div className="mt-2 flex flex-wrap gap-1">
                         {prompt.categories.slice(0, 2).map((cat) => (
@@ -183,7 +186,7 @@ export default function UserProfile({ params }: Route.ComponentProps) {
                             variant="secondary"
                             className="text-xs"
                           >
-                            {cat}
+                            {getCategoryDisplayName(cat)}
                           </Badge>
                         ))}
                       </div>
@@ -196,7 +199,7 @@ export default function UserProfile({ params }: Route.ComponentProps) {
                           size="sm"
                         />
                         <span className="text-xs text-[var(--muted-foreground)]">
-                          ({prompt.prompt_ratings?.rating_count || 0})
+                          ({m.prompt_detail_ratings({ count: prompt.prompt_ratings?.rating_count || 0 })})
                         </span>
                       </div>
                     </CardFooter>
@@ -207,7 +210,7 @@ export default function UserProfile({ params }: Route.ComponentProps) {
           ) : (
             <div className="rounded-lg border border-dashed border-[var(--border)] p-12 text-center">
               <p className="text-[var(--muted-foreground)]">
-                This user hasn't created any prompts yet.
+                {m.profile_public_noPrompts()}
               </p>
             </div>
           )}

@@ -136,12 +136,9 @@ export async function getPromptById(id: string): Promise<PromptWithDetails | nul
       prompt_ratings (prompt_id, rating_count, average_rating)
     `)
     .eq("id", id)
-    .single();
+    .maybeSingle();
 
   if (error) {
-    if (error.code === "PGRST116") {
-      return null; // Not found
-    }
     console.error("Error fetching prompt:", error);
     throw error;
   }

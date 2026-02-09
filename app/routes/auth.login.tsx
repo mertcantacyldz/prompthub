@@ -10,12 +10,14 @@ import { Github, Mail, Loader2 } from "lucide-react";
 import { useAuth } from "~/context";
 import { useToast } from "~/hooks/use-toast";
 import { getSupabaseServerClient } from "~/lib/supabase";
+import { localizeHref } from "~/paraglide/runtime.js";
+import * as m from "~/paraglide/messages.js";
 import type { Route } from "./+types/auth.login";
 
 export function meta() {
   return [
-    { title: "Login - PromptHub" },
-    { name: "description", content: "Login to your PromptHub account" },
+    { title: `${m.auth_loginMetaTitle()}` },
+    { name: "description", content: m.auth_loginMetaDesc() },
   ];
 }
 
@@ -52,7 +54,7 @@ export default function Login() {
   useEffect(() => {
     if (actionData?.error) {
       toast({
-        title: "Login failed",
+        title: m.auth_loginFailed(),
         description: actionData.error,
         variant: "destructive",
       });
@@ -64,7 +66,7 @@ export default function Login() {
     const { error } = await signInWithGoogle();
     if (error) {
       toast({
-        title: "Login failed",
+        title: m.auth_loginFailed(),
         description: error.message,
         variant: "destructive",
       });
@@ -77,7 +79,7 @@ export default function Login() {
     const { error } = await signInWithGithub();
     if (error) {
       toast({
-        title: "Login failed",
+        title: m.auth_loginFailed(),
         description: error.message,
         variant: "destructive",
       });
@@ -90,9 +92,9 @@ export default function Login() {
       <Container className="max-w-md">
         <Card>
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Welcome back</CardTitle>
+            <CardTitle className="text-2xl">{m.auth_welcomeBack()}</CardTitle>
             <CardDescription>
-              Login to your account to continue
+              {m.auth_loginToContinue()}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -126,7 +128,7 @@ export default function Login() {
                     />
                   </svg>
                 )}
-                Continue with Google
+                {m.auth_continueWithGoogle()}
               </Button>
               <Button
                 variant="outline"
@@ -139,7 +141,7 @@ export default function Login() {
                 ) : (
                   <Github className="mr-2 h-4 w-4" />
                 )}
-                Continue with GitHub
+                {m.auth_continueWithGithub()}
               </Button>
             </div>
 
@@ -149,7 +151,7 @@ export default function Login() {
               </div>
               <div className="relative flex justify-center text-xs uppercase">
                 <span className="bg-[var(--card)] px-2 text-[var(--muted-foreground)]">
-                  Or continue with
+                  {m.auth_orContinueWith()}
                 </span>
               </div>
             </div>
@@ -158,24 +160,24 @@ export default function Login() {
             <Form method="post" className="space-y-4">
               <input type="hidden" name="intent" value="login" />
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{m.auth_email()}</Label>
                 <Input
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="name@example.com"
+                  placeholder={m.auth_emailPlaceholder()}
                   disabled={isLoggingIn}
                   required
                 />
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password">{m.auth_password()}</Label>
                   <Link
-                    to="/auth/forgot-password"
+                    to={localizeHref("/auth/forgot-password")}
                     className="text-sm text-accent-500 hover:underline"
                   >
-                    Forgot password?
+                    {m.auth_forgotPassword()}
                   </Link>
                 </div>
                 <Input
@@ -192,15 +194,15 @@ export default function Login() {
                 ) : (
                   <Mail className="mr-2 h-4 w-4" />
                 )}
-                Login with Email
+                {m.auth_loginWithEmail()}
               </Button>
             </Form>
           </CardContent>
           <CardFooter className="flex justify-center">
             <p className="text-sm text-[var(--muted-foreground)]">
-              Don't have an account?{" "}
-              <Link to="/auth/register" className="text-accent-500 hover:underline">
-                Sign up
+              {m.auth_noAccount()}{" "}
+              <Link to={localizeHref("/auth/register")} className="text-accent-500 hover:underline">
+                {m.common_signup()}
               </Link>
             </p>
           </CardFooter>

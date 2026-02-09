@@ -7,20 +7,23 @@ import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Separator } from "~/components/ui/separator";
 import { StarRating } from "~/components/custom";
-import { Copy, Bookmark, Check, ArrowLeft, Edit, Loader2 } from "lucide-react";
+import { Copy, Bookmark, Check, ArrowLeft, Edit, Loader2, Eye } from "lucide-react";
 import { useState, useEffect } from "react";
 import { incrementViewCount, incrementCopyCount } from "~/lib/api";
 import { toggleSavePrompt, ratePrompt } from "~/lib/api";
+import { getCategoryDisplayName } from "~/lib/utils/i18n-helpers";
 import { useAuth } from "~/context";
 import { useToast } from "~/hooks/use-toast";
 import { getSupabaseServerClient } from "~/lib/supabase";
+import { localizeHref } from "~/paraglide/runtime.js";
+import * as m from "~/paraglide/messages.js";
 import type { Prompt, PromptWithDetails } from "~/types";
 
 export function meta({ data }: Route.MetaArgs) {
   const prompt = data?.prompt;
   return [
-    { title: prompt ? `${prompt.title} - PromptHub` : "Prompt Detail - PromptHub" },
-    { name: "description", content: prompt?.description || "View prompt details on PromptHub" },
+    { title: prompt ? `${prompt.title} - PromptHub` : `${m.prompt_detail_metaTitle()} - PromptHub` },
+    { name: "description", content: prompt?.description || m.prompt_detail_metaDesc() },
   ];
 }
 
@@ -117,11 +120,11 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
   const handleSave = async () => {
     if (!user) {
       toast({
-        title: "Login required",
-        description: "Please log in to save prompts.",
+        title: m.home_loginRequired(),
+        description: m.prompt_detail_loginToRate(),
         variant: "destructive",
       });
-      navigate(`/auth/login?redirectTo=/prompts/${prompt.id}`);
+      navigate(localizeHref(`/auth/login?redirectTo=/prompts/${prompt.id}`));
       return;
     }
 
@@ -129,15 +132,15 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
       const isSaved = await toggleSavePrompt(user.id, prompt.id);
       setSaved(isSaved);
       toast({
-        title: isSaved ? "Prompt saved" : "Prompt removed",
+        title: isSaved ? m.home_promptSaved() : m.home_promptRemoved(),
         description: isSaved
-          ? "Added to your saved prompts."
-          : "Removed from your saved prompts.",
+          ? m.home_addedToSaved()
+          : m.home_removedFromSaved(),
       });
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to save prompt.",
+        title: m.common_error(),
+        description: m.toast_saveFailed(),
         variant: "destructive",
       });
     }
@@ -146,11 +149,11 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
   const handleRating = async (rating: number) => {
     if (!user) {
       toast({
-        title: "Login required",
-        description: "Please log in to rate prompts.",
+        title: m.home_loginRequired(),
+        description: m.prompt_detail_loginToRate(),
         variant: "destructive",
       });
-      navigate(`/auth/login?redirectTo=/prompts/${prompt.id}`);
+      navigate(localizeHref(`/auth/login?redirectTo=/prompts/${prompt.id}`));
       return;
     }
 
@@ -159,13 +162,13 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
       await ratePrompt(user.id, prompt.id, rating);
       setUserRating(rating);
       toast({
-        title: "Rating submitted",
-        description: `You rated this prompt ${rating} stars.`,
+        title: m.toast_ratingSubmitted(),
+        description: m.toast_ratingSubmittedDesc({ rating: String(rating) }),
       });
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to submit rating.",
+        title: m.common_error(),
+        description: m.toast_ratingFailed(),
         variant: "destructive",
       });
     } finally {
@@ -182,11 +185,11 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
       <Container className="max-w-4xl">
         {/* Back Button */}
         <Link
-          to="/"
+          to={localizeHref("/")}
           className="mb-6 inline-flex items-center text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to prompts
+          {m.prompt_backToPrompts()}
         </Link>
 
         <Card>
@@ -207,7 +210,7 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
                 </Button>
                 {isOwner && (
                   <Button variant="outline" size="icon" asChild>
-                    <Link to={`/prompts/${params.id}/edit`}>
+                    <Link to={localizeHref(`/prompts/${params.id}/edit`)}>
                       <Edit className="h-4 w-4" />
                     </Link>
                   </Button>
@@ -225,14 +228,26 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
               </Avatar>
               <div>
                 <Link
-                  to={`/profile/${prompt.profiles?.username}`}
+                  to={localizeHref(`/profile/${prompt.profiles?.username}`)}
                   className="font-medium hover:text-accent-500"
                 >
                   @{prompt.profiles?.username}
                 </Link>
-                <p className="text-sm text-[var(--muted-foreground)]">
-                  Created on {new Date(prompt.created_at).toLocaleDateString()}
-                </p>
+                <div className="flex items-center gap-3 text-sm text-[var(--muted-foreground)]">
+                  <p>
+                    {m.prompt_detail_createdOn({ date: new Date(prompt.created_at).toLocaleDateString() })}
+                  </p>
+                  <div className="flex items-center gap-3 border-l pl-3">
+                    <div className="flex items-center gap-1">
+                      <Eye className="h-3.5 w-3.5" />
+                      <span>{prompt.view_count || 0}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Copy className="h-3.5 w-3.5" />
+                      <span>{prompt.copy_count || 0}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -240,7 +255,7 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
             <div className="flex flex-wrap gap-2">
               {prompt.categories.map((cat) => (
                 <Badge key={cat} variant="secondary">
-                  {cat}
+                  {getCategoryDisplayName(cat)}
                 </Badge>
               ))}
               {prompt.ai_platforms.map((platform) => (
@@ -259,7 +274,7 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
                   size="md"
                 />
                 <span className="text-sm text-[var(--muted-foreground)]">
-                  {averageRating.toFixed(1)} ({ratingCount} ratings)
+                  {averageRating.toFixed(1)} ({m.prompt_detail_ratings({ count: ratingCount })})
                 </span>
               </div>
             </div>
@@ -271,7 +286,7 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
             {/* Description */}
             {prompt.description && (
               <div>
-                <h2 className="mb-2 text-lg font-semibold">Description</h2>
+                <h2 className="mb-2 text-lg font-semibold">{m.prompt_detail_description()}</h2>
                 <p className="text-[var(--muted-foreground)]">
                   {prompt.description}
                 </p>
@@ -281,7 +296,7 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
             {/* Prompt Text */}
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Prompt</h2>
+                <h2 className="text-lg font-semibold">{m.prompt_detail_prompt()}</h2>
                 <Button
                   variant="outline"
                   size="sm"
@@ -291,12 +306,12 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
                   {copied ? (
                     <>
                       <Check className="h-4 w-4 text-green-500" />
-                      Copied!
+                      {m.prompt_detail_copied()}
                     </>
                   ) : (
                     <>
                       <Copy className="h-4 w-4" />
-                      Copy
+                      {m.prompt_detail_copy()}
                     </>
                   )}
                 </Button>
@@ -310,7 +325,7 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
 
             {/* Rate This Prompt */}
             <div className="rounded-lg border border-[var(--border)] p-4">
-              <h3 className="mb-3 font-semibold">Rate this prompt</h3>
+              <h3 className="mb-3 font-semibold">{m.prompt_detail_rateThis()}</h3>
               <div className="flex items-center gap-4">
                 {isRating ? (
                   <Loader2 className="h-6 w-6 animate-spin text-accent-500" />
@@ -323,7 +338,7 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
                 )}
                 {userRating > 0 && (
                   <span className="text-sm text-[var(--muted-foreground)]">
-                    You rated {userRating} stars
+                    {m.prompt_detail_youRated({ rating: userRating })}
                   </span>
                 )}
               </div>

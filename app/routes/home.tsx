@@ -10,21 +10,19 @@ import { SearchBar, FilterPanel } from "~/components/search";
 import { Pagination } from "~/components/custom";
 import { Search, Filter, X, ChevronLeft, ChevronRight, SlidersHorizontal, Sparkles } from "lucide-react";
 import { CATEGORIES } from "~/lib/utils/constants";
+import { getCategoryDisplayName } from "~/lib/utils/i18n-helpers";
 import { useState, useEffect } from "react";
 import { getPrompts, type PromptFilters, toggleSavePrompt } from "~/lib/api";
 import { useAuth } from "~/context";
 import { useToast } from "~/hooks/use-toast";
 import { getSupabaseServerClient } from "~/lib/supabase";
+import { localizeHref } from "~/paraglide/runtime.js";
 import type { PromptWithDetails, InputModality } from "~/types";
-
+import * as m from "~/paraglide/messages.js";
 export function meta({ }: Route.MetaArgs) {
   return [
-    { title: "PromptHub - Discover & Share AI Prompts" },
-    {
-      name: "description",
-      content:
-        "Discover, save, and share AI prompts for ChatGPT, Claude, Midjourney and more.",
-    },
+    { title: m.home_metaTitle() },
+    { name: "description", content: m.home_metaDesc() },
   ];
 }
 
@@ -98,11 +96,11 @@ export default function Home() {
   const handleSave = async (id: string) => {
     if (!user) {
       toast({
-        title: "Login required",
-        description: "Please log in to save prompts.",
+        title: m.home_loginRequired(),
+        description: m.home_loginToSave(),
         variant: "destructive",
       });
-      navigate("/auth/login");
+      navigate(localizeHref("/auth/login"));
       return;
     }
 
@@ -112,15 +110,15 @@ export default function Home() {
         isSaved ? [...prev, id] : prev.filter((p) => p !== id)
       );
       toast({
-        title: isSaved ? "Prompt saved" : "Prompt removed",
+        title: isSaved ? m.home_promptSaved() : m.home_promptRemoved(),
         description: isSaved
-          ? "Added to your saved prompts."
-          : "Removed from your saved prompts.",
+          ? m.home_addedToSaved()
+          : m.home_removedFromSaved(),
       });
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to save prompt. Please try again.",
+        title: m.common_error(),
+        description: m.home_saveFailed(),
         variant: "destructive",
       });
     }
@@ -155,20 +153,19 @@ export default function Home() {
         <section className="mb-12 text-center">
           <div className="inline-flex items-center gap-2 rounded-full bg-accent-500/10 px-4 py-1.5 text-sm text-accent-600 dark:text-accent-400 mb-4">
             <Sparkles className="h-4 w-4" />
-            <span>Over 10,000 prompts shared</span>
+            <span>{m.home_heroTag()}</span>
           </div>
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
-            Discover the Best{" "}
-            <span className="text-accent-500">AI Prompts</span>
+            {m.home_heroTitlePart1()}{" "}
+            <span className="text-accent-500">{m.home_heroHighlight()}</span>
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-[var(--muted-foreground)]">
-            Find, save, and share prompts for ChatGPT, Claude, Midjourney, and
-            more. Boost your AI productivity today.
+            {m.home_heroDescription()}
           </p>
 
           {/* Search Bar */}
           <div className="mx-auto mt-8 max-w-xl">
-            <SearchBar size="lg" placeholder="Search for prompts..." />
+            <SearchBar size="lg" placeholder={m.home_searchPlaceholder()} />
           </div>
 
           {/* Quick Filters */}
@@ -182,7 +179,7 @@ export default function Home() {
                   className="cursor-pointer hover:bg-accent-500 hover:text-white transition-colors"
                   onClick={() => handleCategoryClick(category)}
                 >
-                  {category}
+                  {getCategoryDisplayName(category)}
                 </Badge>
               );
             })}
@@ -190,17 +187,17 @@ export default function Home() {
               <SheetTrigger asChild>
                 <Button variant="outline" size="sm" className="h-7 gap-1 px-3 text-xs lg:hidden">
                   <SlidersHorizontal className="h-3 w-3" />
-                  Filters
+                  {m.common_filters()}
                 </Button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-[350px] sm:w-[400px]">
+              <SheetContent side="right" className="w-[350px] sm:w-[400px] flex flex-col">
                 <SheetHeader className="border-b pb-4">
                   <SheetTitle className="flex items-center gap-2">
                     <Filter className="h-5 w-5" />
-                    Filters
+                    {m.common_filters()}
                   </SheetTitle>
                 </SheetHeader>
-                <div className="mt-4">
+                <div className="mt-4 overflow-y-auto flex-1">
                   <FilterPanel />
                 </div>
               </SheetContent>
@@ -209,7 +206,7 @@ export default function Home() {
         </section>
 
         {/* Main Content */}
-        <section className="flex gap-8 mt-8">
+        <section className="flex lg:gap-8 mt-8">
           {/* Desktop Sidebar Filter */}
           <aside className="hidden w-64 shrink-0 lg:block">
             <div className="sticky top-24">
@@ -223,10 +220,10 @@ export default function Home() {
             <div className="mb-6 flex items-center justify-between">
               <div className="flex flex-col gap-1">
                 <h2 className="text-xl font-bold tracking-tight">
-                  {hasActiveFilters ? "Filtered Results" : "Trending Prompts"}
+                  {hasActiveFilters ? m.home_filteredResults() : m.home_trendingPrompts()}
                 </h2>
                 <p className="text-sm text-[var(--muted-foreground)]">
-                  Showing {totalCount} prompts
+                  {m.home_showingCount({ count: String(totalCount) })}
                 </p>
               </div>
 
@@ -236,7 +233,7 @@ export default function Home() {
             {initialPrompts.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-lg text-[var(--muted-foreground)]">
-                  No prompts found. Try adjusting your filters.
+                  {m.home_noPrompts()}
                 </p>
               </div>
             ) : (

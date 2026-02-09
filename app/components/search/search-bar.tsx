@@ -5,6 +5,7 @@ import { Search, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useDebounce } from "~/hooks";
 import { cn } from "~/lib/utils";
+import * as m from "~/paraglide/messages.js";
 
 interface SearchBarProps {
   placeholder?: string;
@@ -14,7 +15,7 @@ interface SearchBarProps {
 }
 
 export function SearchBar({
-  placeholder = "Search prompts...",
+  placeholder,
   className,
   autoFocus = false,
   size = "md",
@@ -58,7 +59,7 @@ export function SearchBar({
       />
       <Input
         type="search"
-        placeholder={placeholder}
+        placeholder={placeholder ?? m.common_searchPrompts()}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         autoFocus={autoFocus}

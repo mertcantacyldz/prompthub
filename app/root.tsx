@@ -11,7 +11,16 @@ import type { Route } from "./+types/root";
 import { ThemeProvider, AuthProvider } from "~/context";
 import { Header, Footer } from "~/components/layout";
 import { TooltipProvider, Toaster } from "~/components/ui";
+import { paraglideMiddleware } from "~/paraglide/server.js";
+import { getLocale } from "~/paraglide/runtime.js";
+import * as m from "~/paraglide/messages.js";
 import "./app.css";
+
+import type { MiddlewareFunction } from "react-router";
+
+export const middleware: MiddlewareFunction[] = [
+  (ctx, next) => paraglideMiddleware(ctx.request, () => next()),
+];
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -27,8 +36,9 @@ export const links: Route.LinksFunction = () => [
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  const locale = getLocale();
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -112,16 +122,16 @@ export default function App({ loaderData }: Route.ComponentProps) {
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
-  let message = "Oops!";
-  let details = "An unexpected error occurred.";
+  let message = m.error_oops();
+  let details = m.error_unexpectedError();
   let stack: string | undefined;
   let is404 = false;
 
   if (isRouteErrorResponse(error)) {
     is404 = error.status === 404;
-    message = is404 ? "404" : "Error";
+    message = is404 ? m.error_404() : m.error_error();
     details = is404
-      ? "The page you're looking for doesn't exist or has been moved."
+      ? m.error_pageNotFoundDesc()
       : error.statusText || details;
   } else if (import.meta.env.DEV && error && error instanceof Error) {
     details = error.message;
@@ -135,7 +145,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
           <div className="text-center max-w-lg mx-auto">
             <h1 className="text-8xl font-bold text-accent-500/20 mb-4">{message}</h1>
             <h2 className="text-2xl font-bold mb-2">
-              {is404 ? "Page Not Found" : "Something went wrong"}
+              {is404 ? m.error_pageNotFound() : m.error_somethingWentWrong()}
             </h2>
             <p className="text-[var(--muted-foreground)] mb-8">{details}</p>
 
@@ -144,13 +154,13 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
                 href="/"
                 className="inline-flex items-center justify-center rounded-md bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-600 transition-colors"
               >
-                Go Home
+                {m.common_goHome()}
               </a>
               <button
                 onClick={() => window.history.back()}
                 className="inline-flex items-center justify-center rounded-md border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-sm font-medium hover:bg-[var(--muted)] transition-colors"
               >
-                Go Back
+                {m.common_goBack()}
               </button>
             </div>
 

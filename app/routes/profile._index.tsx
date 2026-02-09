@@ -12,13 +12,16 @@ import { useState, useEffect } from "react";
 import { getSupabaseServerClient } from "~/lib/supabase";
 import { useAuth } from "~/context";
 import { useToast } from "~/hooks/use-toast";
+import { localizeHref } from "~/paraglide/runtime.js";
+import { getCategoryDisplayName } from "~/lib/utils/i18n-helpers";
+import * as m from "~/paraglide/messages.js";
 import type { Profile, Prompt, PromptWithDetails } from "~/types/database";
 import type { Route } from "./+types/profile._index";
 
 export function meta() {
   return [
-    { title: "My Profile - PromptHub" },
-    { name: "description", content: "View and manage your profile" },
+    { title: `${m.profile_myProfile()} - PromptHub` },
+    { name: "description", content: m.profile_myProfileDesc() },
   ];
 }
 
@@ -27,7 +30,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    return redirect("/auth/login?redirectTo=/profile");
+    return redirect(localizeHref("/auth/login?redirectTo=/profile"));
   }
 
   const userId = user.id;
@@ -113,7 +116,7 @@ export default function Profile() {
   if (!profile) {
     return (
       <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center">
-        <p>Profile not found.</p>
+        <p>{m.profile_notFound()}</p>
       </div>
     );
   }
@@ -140,14 +143,19 @@ export default function Profile() {
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" asChild>
-                  <Link to="/settings">
+                <Button variant="outline" size="sm" asChild className="hidden xs:inline-flex">
+                  <Link to={localizeHref("/settings")}>
                     <Edit className="mr-2 h-4 w-4" />
-                    Edit Profile
+                    {m.profile_editProfile()}
+                  </Link>
+                </Button>
+                <Button variant="outline" size="icon" className="xs:hidden" asChild>
+                  <Link to={localizeHref("/settings")}>
+                    <Edit className="h-4 w-4" />
                   </Link>
                 </Button>
                 <Button variant="outline" size="icon" asChild>
-                  <Link to="/settings">
+                  <Link to={localizeHref("/settings")}>
                     <Settings className="h-4 w-4" />
                   </Link>
                 </Button>
@@ -159,7 +167,7 @@ export default function Profile() {
               </p>
             )}
             <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-              Member since {new Date(profile.created_at).toLocaleDateString()}
+              {m.profile_memberSince({ date: new Date(profile.created_at).toLocaleDateString() })}
             </p>
           </div>
         </div>
@@ -169,27 +177,27 @@ export default function Profile() {
           <Card>
             <CardContent className="p-4 text-center">
               <p className="text-2xl font-bold">{stats.promptCount}</p>
-              <p className="text-sm text-[var(--muted-foreground)]">Prompts</p>
+              <p className="text-sm text-[var(--muted-foreground)]">{m.profile_prompts()}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
               <p className="text-2xl font-bold">{stats.savedCount}</p>
-              <p className="text-sm text-[var(--muted-foreground)]">Saved</p>
+              <p className="text-sm text-[var(--muted-foreground)]">{m.common_saved()}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
               <p className="text-2xl font-bold">{stats.totalViews}</p>
               <p className="text-sm text-[var(--muted-foreground)]">
-                Total Views
+                {m.profile_totalViews()}
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
               <p className="text-2xl font-bold">{stats.totalCopies}</p>
-              <p className="text-sm text-[var(--muted-foreground)]">Total Copies</p>
+              <p className="text-sm text-[var(--muted-foreground)]">{m.profile_totalCopies()}</p>
             </CardContent>
           </Card>
         </div>
@@ -199,11 +207,11 @@ export default function Profile() {
           <TabsList className="w-full justify-start">
             <TabsTrigger value="prompts" className="gap-2">
               <Grid className="h-4 w-4" />
-              My Prompts
+              {m.profile_myPrompts()}
             </TabsTrigger>
             <TabsTrigger value="saved" className="gap-2">
               <Bookmark className="h-4 w-4" />
-              Saved
+              {m.common_saved()}
             </TabsTrigger>
           </TabsList>
 
@@ -211,7 +219,7 @@ export default function Profile() {
             {userPrompts.length > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {userPrompts.map((prompt) => (
-                  <Link key={prompt.id} to={`/prompts/${prompt.id}`}>
+                  <Link key={prompt.id} to={localizeHref(`/prompts/${prompt.id}`)}>
                     <Card className="h-full transition-shadow hover:shadow-lg">
                       <CardHeader className="pb-2">
                         <div className="flex items-center justify-between">
@@ -220,14 +228,14 @@ export default function Profile() {
                           </h3>
                           {!prompt.is_public && (
                             <Badge variant="outline" className="text-xs">
-                              Private
+                              {m.profile_private()}
                             </Badge>
                           )}
                         </div>
                       </CardHeader>
                       <CardContent className="pb-2">
                         <p className="text-sm text-[var(--muted-foreground)] line-clamp-2">
-                          {prompt.description || "No description"}
+                          {prompt.description || m.profile_noDescription()}
                         </p>
                         <div className="mt-2 flex flex-wrap gap-1">
                           {prompt.categories.slice(0, 2).map((cat) => (
@@ -236,7 +244,7 @@ export default function Profile() {
                               variant="secondary"
                               className="text-xs"
                             >
-                              {cat}
+                              {getCategoryDisplayName(cat)}
                             </Badge>
                           ))}
                         </div>
@@ -260,10 +268,10 @@ export default function Profile() {
             ) : (
               <div className="rounded-lg border border-dashed border-[var(--border)] p-12 text-center">
                 <p className="text-[var(--muted-foreground)]">
-                  You haven't created any prompts yet.
+                  {m.profile_noPrompts()}
                 </p>
                 <Button className="mt-4" asChild>
-                  <Link to="/prompts/new">Create Your First Prompt</Link>
+                  <Link to={localizeHref("/prompts/new")}>{m.profile_createFirst()}</Link>
                 </Button>
               </div>
             )}
@@ -273,7 +281,7 @@ export default function Profile() {
             {savedPrompts.length > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {savedPrompts.map((prompt) => (
-                  <Link key={prompt.id} to={`/prompts/${prompt.id}`}>
+                  <Link key={prompt.id} to={localizeHref(`/prompts/${prompt.id}`)}>
                     <Card className="h-full transition-shadow hover:shadow-lg">
                       <CardHeader className="pb-2">
                         <h3 className="font-semibold line-clamp-1">
@@ -282,7 +290,7 @@ export default function Profile() {
                       </CardHeader>
                       <CardContent className="pb-2">
                         <p className="text-sm text-[var(--muted-foreground)] line-clamp-2">
-                          {prompt.description || "No description"}
+                          {prompt.description || m.profile_noDescription()}
                         </p>
                         <div className="mt-2 flex flex-wrap gap-1">
                           {prompt.categories.slice(0, 2).map((cat) => (
@@ -291,7 +299,7 @@ export default function Profile() {
                               variant="secondary"
                               className="text-xs"
                             >
-                              {cat}
+                              {getCategoryDisplayName(cat)}
                             </Badge>
                           ))}
                         </div>
@@ -320,10 +328,10 @@ export default function Profile() {
             ) : (
               <div className="rounded-lg border border-dashed border-[var(--border)] p-12 text-center">
                 <p className="text-[var(--muted-foreground)]">
-                  You haven't saved any prompts yet.
+                  {m.profile_noSaved()}
                 </p>
                 <Button className="mt-4" asChild>
-                  <Link to="/">Explore Prompts</Link>
+                  <Link to={localizeHref("/")}>{m.profile_explorePrompts()}</Link>
                 </Button>
               </div>
             )}

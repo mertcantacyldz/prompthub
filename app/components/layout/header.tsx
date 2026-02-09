@@ -10,16 +10,18 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
-import { ThemeToggle } from "~/components/custom";
+import { ThemeToggle, LanguageSwitcher } from "~/components/custom";
 import { Container } from "./container";
 import { useAuth } from "~/context";
 import { useToast } from "~/hooks/use-toast";
+import { localizeHref } from "~/paraglide/runtime.js";
+import * as m from "~/paraglide/messages.js";
 
 export function Header() {
   const navigate = useNavigate();
   const { user, profile, signOut, isLoading } = useAuth();
   const location = useLocation();
-  const isHomePage = location.pathname === "/";
+  const isHomePage = location.pathname === "/" || location.pathname === "/tr" || location.pathname === "/tr/";
   const { toast } = useToast();
 
   const displayUser = profile ? {
@@ -33,10 +35,10 @@ export function Header() {
     try {
       await signOut();
       toast({
-        title: "Logged out",
-        description: "You have been successfully logged out.",
+        title: m.auth_loggedOut(),
+        description: m.auth_loggedOutDesc(),
       });
-      navigate("/");
+      navigate(localizeHref("/"));
     } catch (error) {
       console.error("Logout error:", error);
     }
@@ -46,25 +48,25 @@ export function Header() {
       <Container>
         <div className="flex h-16 items-center justify-between gap-4">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-500">
+          <Link to={localizeHref("/")} className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-500 shrink-0">
               <span className="text-lg font-bold text-white">P</span>
             </div>
-            <span className="hidden text-xl font-bold sm:inline-block">
-              PromptHub
+            <span className="hidden text-lg font-bold sm:inline-block md:text-xl">
+              {m.common_appName()}
             </span>
           </Link>
 
           {/* Search Bar - Desktop */}
           {!isHomePage && (
             <div className="hidden flex-1 max-w-md md:block">
-              <form action="/" method="get">
+              <form action={localizeHref("/")} method="get">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
                   <Input
                     type="search"
                     name="q"
-                    placeholder="Search prompts..."
+                    placeholder={m.common_searchPrompts()}
                     className="pl-10"
                   />
                 </div>
@@ -77,9 +79,9 @@ export function Header() {
             {/* Search Button - Mobile */}
             {!isHomePage && (
               <Button variant="ghost" size="icon" className="md:hidden" asChild>
-                <Link to="/?search=true">
+                <Link to={localizeHref("/?search=true")}>
                   <Search className="h-5 w-5" />
-                  <span className="sr-only">Search</span>
+                  <span className="sr-only">{m.common_search()}</span>
                 </Link>
               </Button>
             )}
@@ -87,34 +89,37 @@ export function Header() {
             {/* Theme Toggle */}
             <ThemeToggle />
 
+            {/* Language Switcher */}
+            <LanguageSwitcher />
+
             {displayUser ? (
               <>
                 {/* Action Buttons */}
                 <div className="flex items-center gap-1 sm:gap-2">
                   {/* Saved Prompts - Desktop & Tablet */}
                   <Button variant="ghost" asChild className="hidden sm:inline-flex">
-                    <Link to="/profile?tab=saved" className="flex items-center gap-2">
+                    <Link to={localizeHref("/profile?tab=saved")} className="flex items-center gap-2">
                       <Bookmark className="h-4 w-4" />
-                      <span>Saved</span>
+                      <span>{m.common_saved()}</span>
                     </Link>
                   </Button>
 
                   {/* Saved Prompts - Mobile */}
                   <Button variant="ghost" size="icon" className="sm:hidden" asChild>
-                    <Link to="/profile?tab=saved">
+                    <Link to={localizeHref("/profile?tab=saved")}>
                       <Bookmark className="h-5 w-5" />
                     </Link>
                   </Button>
 
                   {/* Add Prompt Button */}
                   <Button asChild className="hidden sm:inline-flex">
-                    <Link to="/prompts/new">
+                    <Link to={localizeHref("/prompts/new")}>
                       <Plus className="mr-1 h-4 w-4" />
-                      <span>New Prompt</span>
+                      <span>{m.common_newPrompt()}</span>
                     </Link>
                   </Button>
-                  <Button variant="default" size="icon" className="sm:hidden" asChild>
-                    <Link to="/prompts/new">
+                  <Button variant="ghost" size="icon" className="sm:hidden" asChild>
+                    <Link to={localizeHref("/prompts/new")}>
                       <Plus className="h-5 w-5" />
                     </Link>
                   </Button>
@@ -149,21 +154,21 @@ export function Header() {
                     </div>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
-                      <Link to="/profile">
+                      <Link to={localizeHref("/profile")}>
                         <User className="mr-2 h-4 w-4" />
-                        Profile
+                        {m.common_profile()}
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link to="/settings">
+                      <Link to={localizeHref("/settings")}>
                         <Settings className="mr-2 h-4 w-4" />
-                        Settings
+                        {m.common_settings()}
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
                       <LogOut className="mr-2 h-4 w-4" />
-                      Log out
+                      {m.common_logout()}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -171,10 +176,10 @@ export function Header() {
             ) : (
               <>
                 <Button variant="ghost" asChild>
-                  <Link to="/auth/login">Log in</Link>
+                  <Link to={localizeHref("/auth/login")}>{m.common_login()}</Link>
                 </Button>
                 <Button asChild>
-                  <Link to="/auth/register">Sign up</Link>
+                  <Link to={localizeHref("/auth/register")}>{m.common_signup()}</Link>
                 </Button>
               </>
             )}

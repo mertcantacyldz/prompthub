@@ -12,8 +12,10 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { CATEGORIES, AI_PLATFORMS, INPUT_MODALITIES } from "~/lib/utils/constants";
+import { getCategoryDisplayName, getModalityDisplayName } from "~/lib/utils/i18n-helpers";
 import { X, SlidersHorizontal } from "lucide-react";
 import { cn } from "~/lib/utils";
+import * as m from "~/paraglide/messages.js";
 
 interface FilterPanelProps {
   className?: string;
@@ -71,26 +73,26 @@ export function FilterPanel({ className }: FilterPanelProps) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="h-4 w-4" />
-          <span className="font-semibold">Filters</span>
+          <span className="font-semibold">{m.common_filters()}</span>
         </div>
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters}>
-            Clear all
+            {m.common_clearAll()}
           </Button>
         )}
       </div>
 
       {/* Sort */}
       <div className="space-y-2">
-        <Label>Sort by</Label>
+        <Label>{m.filter_sortBy()}</Label>
         <Select value={sortBy} onValueChange={(v) => updateParams("sort", v)}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="newest">Newest</SelectItem>
-            <SelectItem value="most_viewed">Most Popular</SelectItem>
-            <SelectItem value="highest_rated">Highest Rated</SelectItem>
+            <SelectItem value="newest">{m.filter_newest()}</SelectItem>
+            <SelectItem value="most_viewed">{m.filter_mostPopular()}</SelectItem>
+            <SelectItem value="highest_rated">{m.filter_highestRated()}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -99,7 +101,7 @@ export function FilterPanel({ className }: FilterPanelProps) {
 
       {/* Categories */}
       <div className="space-y-3">
-        <Label>Categories</Label>
+        <Label>{m.filter_categories()}</Label>
         <div className="max-h-48 overflow-y-auto space-y-2">
           {CATEGORIES.map((category) => (
             <div key={category} className="flex items-center space-x-2">
@@ -112,7 +114,7 @@ export function FilterPanel({ className }: FilterPanelProps) {
                 htmlFor={`cat-${category}`}
                 className="text-sm cursor-pointer"
               >
-                {category}
+                {getCategoryDisplayName(category)}
               </label>
             </div>
           ))}
@@ -123,7 +125,7 @@ export function FilterPanel({ className }: FilterPanelProps) {
 
       {/* AI Platforms */}
       <div className="space-y-3">
-        <Label>AI Platforms</Label>
+        <Label>{m.filter_aiPlatforms()}</Label>
         <div className="space-y-2">
           {AI_PLATFORMS.map((platform) => (
             <div key={platform} className="flex items-center space-x-2">
@@ -147,7 +149,7 @@ export function FilterPanel({ className }: FilterPanelProps) {
 
       {/* Input Modality */}
       <div className="space-y-3">
-        <Label>Input Type</Label>
+        <Label>{m.filter_inputType()}</Label>
         <div className="flex flex-wrap gap-2">
           {INPUT_MODALITIES.map((modality) => (
             <Badge
@@ -161,7 +163,7 @@ export function FilterPanel({ className }: FilterPanelProps) {
                 )
               }
             >
-              {modality}
+              {getModalityDisplayName(modality)}
               {selectedModality === modality && (
                 <X className="ml-1 h-3 w-3" />
               )}
@@ -175,7 +177,7 @@ export function FilterPanel({ className }: FilterPanelProps) {
         <>
           <Separator />
           <div className="space-y-2">
-            <Label>Active Filters</Label>
+            <Label>{m.filter_activeFilters()}</Label>
             <div className="flex flex-wrap gap-1">
               {selectedCategories.map((cat) => (
                 <Badge
@@ -184,7 +186,7 @@ export function FilterPanel({ className }: FilterPanelProps) {
                   className="text-xs cursor-pointer"
                   onClick={() => updateParams("category", cat, true)}
                 >
-                  {cat}
+                  {getCategoryDisplayName(cat)}
                   <X className="ml-1 h-3 w-3" />
                 </Badge>
               ))}
@@ -205,7 +207,7 @@ export function FilterPanel({ className }: FilterPanelProps) {
                   className="text-xs cursor-pointer capitalize"
                   onClick={() => updateParams("modality", "")}
                 >
-                  {selectedModality}
+                  {getModalityDisplayName(selectedModality)}
                   <X className="ml-1 h-3 w-3" />
                 </Badge>
               )}

@@ -1,6 +1,7 @@
 import { PromptCard, type PromptCardProps } from "./prompt-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { cn } from "~/lib/utils";
+import * as m from "~/paraglide/messages.js";
 
 import type { PromptWithDetails } from "~/types";
 
@@ -23,7 +24,7 @@ export function PromptList({
     return (
       <div
         className={cn(
-          "grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
+          "grid gap-4 sm:gap-5 lg:gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
           className
         )}
       >
@@ -38,10 +39,10 @@ export function PromptList({
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <p className="text-lg text-[var(--muted-foreground)]">
-          No prompts found
+          {m.promptList_noPrompts()}
         </p>
         <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-          Try adjusting your filters or search query
+          {m.promptList_adjustFilters()}
         </p>
       </div>
     );
@@ -50,28 +51,31 @@ export function PromptList({
   return (
     <div
       className={cn(
-        "grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
+        "grid gap-4 sm:gap-5 lg:gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
         className
       )}
     >
       {prompts.map((prompt) => (
-        <PromptCard
-          key={prompt.id}
-          id={prompt.id}
-          title={prompt.title}
-          description={prompt.description}
-          prompt_text={prompt.prompt_text}
-          categories={prompt.categories}
-          ai_platforms={prompt.ai_platforms}
-          average_rating={prompt.prompt_ratings?.average_rating || 0}
-          rating_count={prompt.prompt_ratings?.rating_count || 0}
-          user={{
-            username: prompt.profiles?.username || "unknown",
-            avatar_url: prompt.profiles?.avatar_url || null,
-          }}
-          is_saved={savedPromptIds.includes(prompt.id)}
-          onSave={onSave}
-        />
+        <div key={prompt.id} className="w-full min-w-0">
+          <PromptCard
+            id={prompt.id}
+            title={prompt.title}
+            description={prompt.description}
+            prompt_text={prompt.prompt_text}
+            categories={prompt.categories}
+            ai_platforms={prompt.ai_platforms}
+            average_rating={prompt.prompt_ratings?.average_rating || 0}
+            rating_count={prompt.prompt_ratings?.rating_count || 0}
+            user={{
+              username: prompt.profiles?.username || "unknown",
+              avatar_url: prompt.profiles?.avatar_url || null,
+            }}
+            is_saved={savedPromptIds.includes(prompt.id)}
+            view_count={prompt.view_count || 0}
+            copy_count={prompt.copy_count || 0}
+            onSave={onSave}
+          />
+        </div>
       ))}
     </div>
   );

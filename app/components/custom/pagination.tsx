@@ -2,6 +2,7 @@ import * as React from "react";
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { Button, buttonVariants } from "~/components/ui/button";
+import * as m from "~/paraglide/messages.js";
 
 interface PaginationProps {
   currentPage: number;
@@ -18,10 +19,12 @@ export function Pagination({
 }: PaginationProps) {
   const getPageNumbers = () => {
     const pages: (number | "ellipsis")[] = [];
-    const showEllipsisStart = currentPage > 3;
-    const showEllipsisEnd = currentPage < totalPages - 2;
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
+    const siblingCount = isMobile ? 0 : 1;
+    const showEllipsisStart = currentPage > (isMobile ? 2 : 3);
+    const showEllipsisEnd = currentPage < totalPages - (isMobile ? 1 : 2);
 
-    if (totalPages <= 7) {
+    if (totalPages <= (isMobile ? 5 : 7)) {
       for (let i = 1; i <= totalPages; i++) {
         pages.push(i);
       }
@@ -32,8 +35,8 @@ export function Pagination({
         pages.push("ellipsis");
       }
 
-      const start = Math.max(2, currentPage - 1);
-      const end = Math.min(totalPages - 1, currentPage + 1);
+      const start = Math.max(2, currentPage - siblingCount);
+      const end = Math.min(totalPages - 1, currentPage + siblingCount);
 
       for (let i = start; i <= end; i++) {
         pages.push(i);
@@ -54,7 +57,7 @@ export function Pagination({
   return (
     <nav
       role="navigation"
-      aria-label="Pagination"
+      aria-label={m.pagination_label()}
       className={cn("flex items-center justify-center gap-1", className)}
     >
       <Button
@@ -62,7 +65,7 @@ export function Pagination({
         size="icon"
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
-        aria-label="Go to previous page"
+        aria-label={m.pagination_previous()}
       >
         <ChevronLeft className="h-4 w-4" />
       </Button>
@@ -81,7 +84,7 @@ export function Pagination({
             variant={currentPage === page ? "default" : "outline"}
             size="icon"
             onClick={() => onPageChange(page)}
-            aria-label={`Go to page ${page}`}
+            aria-label={m.pagination_goToPage({ page: String(page) })}
             aria-current={currentPage === page ? "page" : undefined}
           >
             {page}
@@ -94,7 +97,7 @@ export function Pagination({
         size="icon"
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
-        aria-label="Go to next page"
+        aria-label={m.pagination_next()}
       >
         <ChevronRight className="h-4 w-4" />
       </Button>

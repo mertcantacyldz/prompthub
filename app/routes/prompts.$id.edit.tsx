@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Switch } from "~/components/ui/switch";
 import { Badge } from "~/components/ui/badge";
 import { CATEGORIES, AI_PLATFORMS, INPUT_MODALITIES } from "~/lib/utils/constants";
+import { getCategoryDisplayName, getModalityDisplayName } from "~/lib/utils/i18n-helpers";
 import { X, ArrowLeft, Trash2, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import {
@@ -23,12 +24,14 @@ import {
 import { getSupabaseServerClient } from "~/lib/supabase";
 import { useAuth } from "~/context";
 import { useToast } from "~/hooks/use-toast";
+import { localizeHref } from "~/paraglide/runtime.js";
+import * as m from "~/paraglide/messages.js";
 import type { Prompt, PromptUpdate, PromptWithDetails, InputModality } from "~/types";
 
 export function meta() {
   return [
-    { title: "Edit Prompt - PromptHub" },
-    { name: "description", content: "Edit your prompt" },
+    { title: `${m.prompt_editMeta()} - PromptHub` },
+    { name: "description", content: m.prompt_editMetaDesc() },
   ];
 }
 
@@ -37,7 +40,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    return redirect(`/auth/login?redirectTo=/prompts/${params.id}/edit`);
+    return redirect(localizeHref(`/auth/login?redirectTo=/prompts/${params.id}/edit`));
   }
 
   const { data: prompt, error } = await supabase
@@ -55,12 +58,12 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     .single();
 
   if (error || !prompt) {
-    return redirect("/?error=prompt_not_found");
+    return redirect(localizeHref("/?error=prompt_not_found"));
   }
 
   // Check ownership
   if (prompt.user_id !== user.id) {
-    return redirect(`/prompts/${params.id}?error=unauthorized`);
+    return redirect(localizeHref(`/prompts/${params.id}?error=unauthorized`));
   }
 
   const promptProfile = Array.isArray(prompt.profiles) ? prompt.profiles[0] : prompt.profiles;
@@ -79,7 +82,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    return redirect("/auth/login", { headers });
+    return redirect(localizeHref("/auth/login"), { headers });
   }
 
   const formData = await request.formData();
@@ -93,10 +96,10 @@ export async function action({ request, params }: Route.ActionArgs) {
       .eq("user_id", user.id);
 
     if (error) {
-      return data({ error: "Failed to delete prompt." }, { status: 500, headers });
+      return data({ error: m.prompt_validation_deleteFailed() }, { status: 500, headers });
     }
 
-    return redirect("/", { headers });
+    return redirect(localizeHref("/"), { headers });
   }
 
   if (intent === "edit_prompt") {
@@ -110,16 +113,16 @@ export async function action({ request, params }: Route.ActionArgs) {
 
     // Validation
     if (title.trim().length < 3) {
-      return data({ error: "Title must be at least 3 characters long." }, { status: 400 });
+      return data({ error: m.prompt_validation_titleMin() }, { status: 400 });
     }
     if (prompt_text.trim().length < 10) {
-      return data({ error: "Prompt text must be at least 10 characters long." }, { status: 400 });
+      return data({ error: m.prompt_validation_textMin() }, { status: 400 });
     }
     if (categories.length === 0) {
-      return data({ error: "Please select at least one category." }, { status: 400 });
+      return data({ error: m.prompt_validation_categoryRequired() }, { status: 400 });
     }
     if (ai_platforms.length === 0) {
-      return data({ error: "Please select at least one AI platform." }, { status: 400 });
+      return data({ error: m.prompt_validation_platformRequired() }, { status: 400 });
     }
 
     const { error } = await supabase
@@ -138,10 +141,10 @@ export async function action({ request, params }: Route.ActionArgs) {
       .eq("user_id", user.id);
 
     if (error) {
-      return data({ error: "Failed to update prompt." }, { status: 500, headers });
+      return data({ error: m.prompt_validation_updateFailed() }, { status: 500, headers });
     }
 
-    return redirect(`/prompts/${params.id}`, { headers });
+    return redirect(localizeHref(`/prompts/${params.id}`), { headers });
   }
 
   return null;
@@ -165,7 +168,7 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
   useEffect(() => {
     if (actionData?.error) {
       toast({
-        title: "Error",
+        title: m.common_error(),
         description: actionData.error,
         variant: "destructive",
       });
@@ -193,29 +196,28 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
       <Container className="max-w-3xl">
         {/* Back Button */}
         <Link
-          to={`/prompts/${params.id}`}
+          to={localizeHref(`/prompts/${params.id}`)}
           className="mb-6 inline-flex items-center text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to prompt
+          {m.prompt_backToPrompt()}
         </Link>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-2xl">Edit Prompt</CardTitle>
+            <CardTitle className="text-2xl">{m.prompt_edit()}</CardTitle>
             <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
               <DialogTrigger asChild>
                 <Button variant="destructive" size="sm" disabled={isSubmitting || isDeleting}>
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
+                  {m.common_delete()}
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Delete Prompt</DialogTitle>
+                  <DialogTitle>{m.dialog_deletePromptTitle()}</DialogTitle>
                   <DialogDescription>
-                    Are you sure you want to delete this prompt? This action
-                    cannot be undone.
+                    {m.dialog_deletePromptDescription()}
                   </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
@@ -224,7 +226,7 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
                     onClick={() => setShowDeleteDialog(false)}
                     disabled={isDeleting}
                   >
-                    Cancel
+                    {m.common_cancel()}
                   </Button>
                   <Form method="post">
                     <input type="hidden" name="intent" value="delete_prompt" />
@@ -232,10 +234,10 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
                       {isDeleting ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Deleting...
+                          {m.prompt_deleting()}
                         </>
                       ) : (
-                        "Delete"
+                        m.common_delete()
                       )}
                     </Button>
                   </Form>
@@ -256,11 +258,12 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
 
               {/* Title */}
               <div className="space-y-2">
-                <Label htmlFor="title">Title *</Label>
+                <Label htmlFor="title">{m.prompt_title()}</Label>
                 <Input
                   id="title"
                   name="title"
                   defaultValue={prompt.title}
+                  placeholder={m.prompt_titlePlaceholder()}
                   disabled={isSubmitting}
                   required
                 />
@@ -268,10 +271,11 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
 
               {/* Description */}
               <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description">{m.prompt_description()}</Label>
                 <Textarea
                   id="description"
                   name="description"
+                  placeholder={m.prompt_descriptionPlaceholder()}
                   defaultValue={prompt.description || ""}
                   disabled={isSubmitting}
                   rows={3}
@@ -280,10 +284,11 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
 
               {/* Prompt Text */}
               <div className="space-y-2">
-                <Label htmlFor="prompt_text">Prompt Text *</Label>
+                <Label htmlFor="prompt_text">{m.prompt_promptText()}</Label>
                 <Textarea
                   id="prompt_text"
                   name="prompt_text"
+                  placeholder={m.prompt_promptTextPlaceholder()}
                   defaultValue={prompt.prompt_text}
                   disabled={isSubmitting}
                   rows={8}
@@ -294,7 +299,7 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
 
               {/* Categories */}
               <div className="space-y-2">
-                <Label>Categories * (select at least one)</Label>
+                <Label>{m.prompt_categoriesLabel()}</Label>
                 <div className="flex flex-wrap gap-2">
                   {CATEGORIES.map((category) => (
                     <Badge
@@ -307,7 +312,7 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
                       className="cursor-pointer"
                       onClick={() => toggleCategory(category)}
                     >
-                      {category}
+                      {getCategoryDisplayName(category)}
                       {selectedCategories.includes(category) && (
                         <X className="ml-1 h-3 w-3" />
                       )}
@@ -318,7 +323,7 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
 
               {/* AI Platforms */}
               <div className="space-y-2">
-                <Label>Best AI Platforms * (select at least one)</Label>
+                <Label>{m.prompt_platformsLabel()}</Label>
                 <div className="flex flex-wrap gap-2">
                   {AI_PLATFORMS.map((platform) => (
                     <Badge
@@ -342,7 +347,7 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
 
               {/* Input Modality */}
               <div className="space-y-2">
-                <Label htmlFor="input_modality">Input Type</Label>
+                <Label htmlFor="input_modality">{m.prompt_inputType()}</Label>
                 <select
                   id="input_modality"
                   name="input_modality"
@@ -352,7 +357,7 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
                 >
                   {INPUT_MODALITIES.map((modality) => (
                     <option key={modality} value={modality}>
-                      {modality.charAt(0).toUpperCase() + modality.slice(1)}
+                      {getModalityDisplayName(modality)}
                     </option>
                   ))}
                 </select>
@@ -361,11 +366,11 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
               {/* Public/Private */}
               <div className="flex items-center justify-between rounded-lg border border-[var(--border)] p-4">
                 <div className="space-y-0.5">
-                  <Label htmlFor="is_public">Make Public</Label>
+                  <Label htmlFor="is_public">{m.prompt_makePublic()}</Label>
                   <p className="text-sm text-[var(--muted-foreground)]">
                     {isPublic
-                      ? "Anyone can see and use this prompt"
-                      : "Only you can see this prompt"}
+                      ? m.prompt_publicDesc()
+                      : m.prompt_privateDesc()}
                   </p>
                 </div>
                 <Switch
@@ -382,14 +387,14 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
+                      {m.common_saving()}
                     </>
                   ) : (
-                    "Save Changes"
+                    m.common_saveChanges()
                   )}
                 </Button>
                 <Button type="button" variant="outline" asChild disabled={isSubmitting || isDeleting}>
-                  <Link to={`/prompts/${params.id}`}>Cancel</Link>
+                  <Link to={localizeHref(`/prompts/${params.id}`)}>{m.common_cancel()}</Link>
                 </Button>
               </div>
             </Form>

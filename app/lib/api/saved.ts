@@ -8,9 +8,9 @@ export async function isPromptSaved(userId: string, promptId: string): Promise<b
     .select("id")
     .eq("user_id", userId)
     .eq("prompt_id", promptId)
-    .single();
+    .maybeSingle();
 
-  if (error && error.code !== "PGRST116") {
+  if (error) {
     console.error("Error checking saved status:", error);
     throw error;
   }
@@ -84,9 +84,22 @@ export async function getSavedPrompts(userId: string): Promise<PromptWithDetails
     throw error;
   }
 
-  // Extract prompts from the nested structure
+  // Extract prompts from the nested structure and map to PromptWithDetails
   return (data || [])
-    .map((item) => item.prompts)
+    .map((item: any) => {
+      const p = item.prompts;
+      if (!p) return null;
+
+      // Supabase joins return arrays, so we need to get the first element
+      const rating = Array.isArray(p.prompt_ratings) ? p.prompt_ratings[0] : p.prompt_ratings;
+      const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
+
+      return {
+        ...p,
+        profiles: profile || { username: "unknown", avatar_url: null },
+        prompt_ratings: rating || null
+      } as PromptWithDetails;
+    })
     .filter((prompt): prompt is PromptWithDetails => prompt !== null);
 }
 
@@ -96,12 +109,9 @@ export async function getPromptSaveCount(promptId: string): Promise<number> {
     .from("prompt_save_counts")
     .select("save_count")
     .eq("prompt_id", promptId)
-    .single();
+    .maybeSingle();
 
   if (error) {
-    if (error.code === "PGRST116") {
-      return 0;
-    }
     console.error("Error fetching save count:", error);
     throw error;
   }
