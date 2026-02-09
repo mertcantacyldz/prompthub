@@ -4,3 +4,6 @@
 
 [functions]
   directory = ".netlify/functions-internal"
+
+[functions]
+  directory = ".netlify/functions-internal"
