@@ -260,6 +260,10 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
                       <Bookmark className="h-3.5 w-3.5" />
                       <span>{prompt.save_count || 0}</span>
                     </div>
+                    <div className="flex items-center gap-1">
+                      <Copy className="h-3.5 w-3.5" />
+                      <span>{prompt.copy_count || 0}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -309,13 +313,13 @@ export default function PromptDetail({ params }: Route.ComponentProps) {
 
             {/* Prompt Text */}
             <div>
-              <div className="mb-2 flex items-center justify-between">
+              <div className="mb-2 flex items-center justify-between ">
                 <h2 className="text-lg font-semibold">{m.prompt_detail_prompt()}</h2>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleCopy}
-                  className="gap-2"
+                  className="gap-2 mt-1.5"
                 >
                   {copied ? (
                     <>

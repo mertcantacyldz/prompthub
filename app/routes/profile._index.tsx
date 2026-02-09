@@ -175,19 +175,19 @@ export default function Profile() {
         {/* Stats */}
         <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Card>
-            <CardContent className="p-4 text-center">
+            <CardContent className="p-4! text-center">
               <p className="text-2xl font-bold">{stats.promptCount}</p>
               <p className="text-sm text-[var(--muted-foreground)]">{m.profile_prompts()}</p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4 text-center">
+            <CardContent className="p-4! text-center">
               <p className="text-2xl font-bold">{stats.savedCount}</p>
               <p className="text-sm text-[var(--muted-foreground)]">{m.common_saved()}</p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4 text-center">
+            <CardContent className="p-4! text-center">
               <p className="text-2xl font-bold">{stats.totalViews}</p>
               <p className="text-sm text-[var(--muted-foreground)]">
                 {m.profile_totalViews()}
@@ -195,7 +195,7 @@ export default function Profile() {
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4 text-center">
+            <CardContent className="p-4! text-center">
               <p className="text-2xl font-bold">{stats.totalCopies}</p>
               <p className="text-sm text-[var(--muted-foreground)]">{m.profile_totalCopies()}</p>
             </CardContent>

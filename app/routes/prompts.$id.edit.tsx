@@ -160,6 +160,9 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
   const [selectedCategories, setSelectedCategories] = useState<string[]>(prompt.categories);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(prompt.ai_platforms);
   const [isPublic, setIsPublic] = useState(prompt.is_public);
+  const [title, setTitle] = useState(prompt.title);
+  const [description, setDescription] = useState(prompt.description || "");
+  const [promptText, setPromptText] = useState(prompt.prompt_text);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const isSubmitting = navigation.state === "submitting" && navigation.formData?.get("intent") === "edit_prompt";
@@ -262,11 +265,16 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
                 <Input
                   id="title"
                   name="title"
-                  defaultValue={prompt.title}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
                   placeholder={m.prompt_titlePlaceholder()}
                   disabled={isSubmitting}
                   required
+                  maxLength={200}
                 />
+                <div className="flex justify-end">
+                  <span className="text-xs text-muted-foreground">{title.length}/200</span>
+                </div>
               </div>
 
               {/* Description */}
@@ -275,11 +283,16 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
                 <Textarea
                   id="description"
                   name="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
                   placeholder={m.prompt_descriptionPlaceholder()}
-                  defaultValue={prompt.description || ""}
                   disabled={isSubmitting}
                   rows={3}
+                  maxLength={1000}
                 />
+                <div className="flex justify-end">
+                  <span className="text-xs text-muted-foreground">{description.length}/1000</span>
+                </div>
               </div>
 
               {/* Prompt Text */}
@@ -288,13 +301,18 @@ export default function EditPrompt({ params }: Route.ComponentProps) {
                 <Textarea
                   id="prompt_text"
                   name="prompt_text"
+                  value={promptText}
+                  onChange={(e) => setPromptText(e.target.value)}
                   placeholder={m.prompt_promptTextPlaceholder()}
-                  defaultValue={prompt.prompt_text}
                   disabled={isSubmitting}
                   rows={8}
                   required
                   className="font-mono text-sm"
+                  maxLength={5000}
                 />
+                <div className="flex justify-end">
+                  <span className="text-xs text-muted-foreground">{promptText.length}/5000</span>
+                </div>
               </div>
 
               {/* Categories */}

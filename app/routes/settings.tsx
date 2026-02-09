@@ -353,10 +353,14 @@ export default function Settings() {
                   onChange={(e) => setUsername(e.target.value)}
                   disabled={isUpdating}
                   required
+                  maxLength={30}
                 />
-                {actionData?.error?.includes("Username") && (
-                  <p className="text-sm text-red-500">{actionData.error}</p>
-                )}
+                <div className="flex justify-between">
+                  {actionData?.error?.includes("Username") ? (
+                    <p className="text-sm text-red-500">{actionData.error}</p>
+                  ) : <div />}
+                  <span className="text-xs text-muted-foreground">{username.length}/30</span>
+                </div>
               </div>
 
               {/* Display Name */}
@@ -369,7 +373,11 @@ export default function Settings() {
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder={m.settings_displayNamePlaceholder()}
                   disabled={isUpdating}
+                  maxLength={50}
                 />
+                <div className="flex justify-end">
+                  <span className="text-xs text-muted-foreground">{displayName.length}/50</span>
+                </div>
               </div>
 
               {/* Bio */}
@@ -383,7 +391,11 @@ export default function Settings() {
                   placeholder={m.settings_bioPlaceholder()}
                   rows={3}
                   disabled={isUpdating}
+                  maxLength={200}
                 />
+                <div className="flex justify-end">
+                  <span className="text-xs text-muted-foreground">{bio.length}/200</span>
+                </div>
               </div>
 
               <Button type="submit" disabled={isUpdating}>

@@ -99,6 +99,9 @@ export default function NewPrompt() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [isPublic, setIsPublic] = useState(true);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [promptText, setPromptText] = useState("");
 
   const isSubmitting = navigation.state === "submitting" && navigation.formData?.get("intent") === "create_prompt";
 
@@ -156,10 +159,16 @@ export default function NewPrompt() {
                 <Input
                   id="title"
                   name="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
                   placeholder={m.prompt_titlePlaceholder()}
                   disabled={isSubmitting}
                   required
+                  maxLength={200}
                 />
+                <div className="flex justify-end">
+                  <span className="text-xs text-muted-foreground">{title.length}/200</span>
+                </div>
               </div>
 
               {/* Description */}
@@ -168,10 +177,16 @@ export default function NewPrompt() {
                 <Textarea
                   id="description"
                   name="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
                   placeholder={m.prompt_descriptionPlaceholder()}
                   disabled={isSubmitting}
                   rows={3}
+                  maxLength={1000}
                 />
+                <div className="flex justify-end">
+                  <span className="text-xs text-muted-foreground">{description.length}/1000</span>
+                </div>
               </div>
 
               {/* Prompt Text */}
@@ -180,12 +195,18 @@ export default function NewPrompt() {
                 <Textarea
                   id="prompt_text"
                   name="prompt_text"
+                  value={promptText}
+                  onChange={(e) => setPromptText(e.target.value)}
                   placeholder={m.prompt_promptTextPlaceholder()}
                   disabled={isSubmitting}
                   rows={8}
                   required
                   className="font-mono text-sm"
+                  maxLength={5000}
                 />
+                <div className="flex justify-end">
+                  <span className="text-xs text-muted-foreground">{promptText.length}/5000</span>
+                </div>
               </div>
 
               {/* Categories */}
