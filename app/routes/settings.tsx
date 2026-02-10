@@ -130,7 +130,8 @@ export default function Settings() {
   const actionData = useActionData<typeof action>() as ActionData;
   const navigation = useNavigation();
   const { theme, setTheme } = useTheme();
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, profile: contextProfile } = useAuth();
+  const profile = contextProfile || initialProfile;
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -288,9 +289,9 @@ export default function Settings() {
               {/* Avatar */}
               <div className="flex flex-col items-center gap-4">
                 <Avatar className="h-24 w-24">
-                  <AvatarImage src={initialProfile.avatar_url || undefined} />
+                  <AvatarImage src={profile.avatar_url || undefined} />
                   <AvatarFallback className="text-2xl">
-                    {initialProfile.username.charAt(0).toUpperCase()}
+                    {profile.username.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex gap-2">
@@ -320,7 +321,7 @@ export default function Settings() {
                       </>
                     )}
                   </Button>
-                  {initialProfile.avatar_url && (
+                  {profile.avatar_url && (
                     <Button
                       type="button"
                       variant="outline"
@@ -458,7 +459,7 @@ export default function Settings() {
               <div>
                 <p className="font-medium">{m.auth_email()}</p>
                 <p className="text-sm text-[var(--muted-foreground)]">
-                  {initialProfile.email}
+                  {profile.email}
                 </p>
               </div>
             </div>

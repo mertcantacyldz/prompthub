@@ -75,8 +75,8 @@ export async function isUsernameAvailable(username: string, currentUserId?: stri
 // Upload avatar
 export async function uploadAvatar(userId: string, file: File): Promise<string> {
   const fileExt = file.name.split(".").pop();
-  const fileName = `${userId}-${Date.now()}.${fileExt}`;
-  const filePath = `avatars/${fileName}`;
+  const fileName = `${Date.now()}.${fileExt}`;
+  const filePath = `${userId}/${fileName}`;
 
   // Upload file to storage
   const { error: uploadError } = await supabase.storage
@@ -107,9 +107,10 @@ export async function deleteAvatar(userId: string): Promise<void> {
   if (!profile?.avatar_url) return;
 
   // Extract file path from URL
+  // URL format: .../storage/v1/object/public/avatars/USER_ID/FILENAME
   const urlParts = profile.avatar_url.split("/");
   const fileName = urlParts[urlParts.length - 1];
-  const filePath = `avatars/${fileName}`;
+  const filePath = `${userId}/${fileName}`;
 
   // Delete from storage
   const { error: deleteError } = await supabase.storage
